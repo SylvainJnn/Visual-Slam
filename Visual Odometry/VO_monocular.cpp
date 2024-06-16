@@ -201,7 +201,7 @@ class VisualOdometry_monocular
         std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
 
         
-        cv::Ptr<cv::Feature2D> orb = cv::ORB::create(); // we can change the number 
+        cv::Ptr<cv::Feature2D> orb = cv::ORB::create(3000); // we can change the number 
 
         // TODO Je ne sais pas porquoi ces params la
         cv::Ptr<cv::flann::IndexParams> index_params = cv::makePtr<cv::flann::LshIndexParams>(6, 12, 1);
