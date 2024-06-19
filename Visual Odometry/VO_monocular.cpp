@@ -73,7 +73,6 @@ class VisualOdometry_monocular
 
         int exctract_and_matche_feature(int image_index) // en input le numéros de l'image actuelle 
         {
-            std::cout << "entre dans boucle "<< image_index << std::endl;
             /*
             A - compute keypoints and descriptors
             B - match them
@@ -97,20 +96,18 @@ class VisualOdometry_monocular
             my_flann->knnMatch(previous_descriptors, current_descriptors, matches, 2);
             // printMatches(matches);
 
-
+    
             // C - filter only the good match
             const float ratio_thresh = 0.5f; // TODO c'est quoi ce ration
             std::vector<cv::DMatch> good_matches;
             for (size_t i = 0; i < matches.size(); i++) 
-            { // CA CRASH LA
-                std::cout << "debut 1 -  " << i <<std::endl;
-                std::cout << matches[i][0].distance<< std::endl;
-                std::cout << "après 2 "<<std::endl;
-                std::cout << matches[i][1].distance<< std::endl;
-
-                if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
+            {
+                if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue
                 {
-                    std::cout << "après crash if " << i <<std::endl;
+                    std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
+                }
+                else if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
+                {
                     good_matches.push_back(matches[i][0]);
                 }
             }
@@ -123,19 +120,11 @@ class VisualOdometry_monocular
             // Reset
             q_current.clear();
             q_previous.clear();
-            // std::cout << "IAMGE numéros :" << image_index << std::endl;
-            // std::cout << "previous_keypoints:" << previous_keypoints.size() << std::endl;
-            // std::cout << "current_keypoints :" << current_keypoints.size() << std::endl;
-
             for (const auto& good : good_matches) 
             {
                 q_previous.push_back(previous_keypoints[good.queryIdx].pt);
                 q_current.push_back(current_keypoints[good.trainIdx].pt);
             }
-
-            // std::cout << "IAMGE numéros :" << image_index << std::endl;
-            // std::cout << "q_previous:" << q_previous.size() << std::endl;
-            // std::cout << "q_current :" << q_current.size() << std::endl;
 
             //TEST
             // cv::Mat img_matches;
@@ -201,7 +190,7 @@ class VisualOdometry_monocular
         std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
 
         
-        cv::Ptr<cv::Feature2D> orb = cv::ORB::create(3000); // we can change the number 
+        cv::Ptr<cv::Feature2D> orb = cv::ORB::create(); // we can change the number 
 
         // TODO Je ne sais pas porquoi ces params la
         cv::Ptr<cv::flann::IndexParams> index_params = cv::makePtr<cv::flann::LshIndexParams>(6, 12, 1);
