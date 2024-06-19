@@ -2,39 +2,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-def plot_curves(my_data, ground_truth_data, data_tuto=None):
-    # Séparation des données A et B en coordonnées x et z
-    my_data_x = [point[0] for point in my_data]
-    my_data_z = [point[1] for point in my_data]
-    
-    ground_truth_data_x = [point[0] for point in ground_truth_data]
-    ground_truth_data_z = [point[1] for point in ground_truth_data]
 
-    # # Tracé des courbes
-    # plt.plot(my_data_z, my_data_x, label='My Data')
-    # plt.plot(ground_truth_data_z, ground_truth_data_x, label='Ground Truth Data')
+class data:
+    def __init__(self, new_name, new_pointclouds):
+        self.name = new_name
+        self.pointclouds = new_pointclouds
 
-    # Tracé des points
-    
 
-    if(data_tuto != None):
-        data_tuto_x = [point[0] for point in data_tuto]
-        data_tuto_z = [point[1] for point in data_tuto]     
-        plt.scatter(data_tuto_x, data_tuto_z, label='data tuto')
-    plt.scatter(ground_truth_data_x, ground_truth_data_z, label='Ground Truth Data')
-    plt.scatter(my_data_x, my_data_z, label='My Data')
 
-    # Ajout de légendes et d'autres détails
+
+def plot_data(data):
+    for d in data:
+        dx = [points[0] for points in d.pointclouds]
+        dz = [points[1] for points in d.pointclouds]
+        plt.scatter(dx, dz, label=d.name)
+
     plt.xlabel('X')
     plt.ylabel('Z')
-    plt.title('Comparaison entre My Data et Ground Truth Data')
+    plt.title('Visual Odometetry point clouds')
     plt.legend()
     plt.grid(True)
-
-    # Affichage du graphique
+    
     plt.show()
-
-
 
 
 def read_data(filename):
@@ -55,7 +44,7 @@ def read_tuto_data(filename):
         for line in file:
             # sepearent element of the line 
             elements = line.split()
-            # get 3rd and 9th element --> (x, z)
+            # get 4rd and 11th element --> (x, z)
             x = float(elements[0])  # Le 4ème élément (index 3)
             z = float(elements[1])  # Le 12ème élément (index 11)
             data.append([x, z])
@@ -70,25 +59,17 @@ def read_data_pandas(filename):
     return data
 
 
-
 if __name__ == "__main__":
-    my_data_seq1 = read_data("poses/my_poses_seq1.txt")
-    ground_truth_data_seq1 = read_data("example/KITTI_sequence_1/poses.txt")
-    data_tuto_seq1 = read_tuto_data("poses/tuto_poses_seq1.txt")
-    # for data in ground_truth_data:
-    #     print(data)
-    # print(ground_truth_data)
-    
-    
-    # plot_curves(my_data, ground_truth_data[1:])
+    my_data_seq1 = data("my_data_seq1", 
+                         read_data("poses/my_poses_seq1.txt")) 
+    ground_truth_data_seq1 = data("ground_truth_data_seq1",
+                                   read_data("example/KITTI_sequence_1/poses.txt"))
+    data_tuto_seq1 = data("data_tuto_seq1",
+                           read_tuto_data("poses/tuto_poses_seq1.txt"))
     
 
-
-    my_data_seq2 = read_data("poses/my_poses_seq2.txt")
-    ground_truth_data_seq2 = read_data("example/KITTI_sequence_2/poses.txt")
-    data_tuto_seq2 = read_tuto_data("poses/tuto_poses_seq2.txt")
-
-
-    plot_curves(my_data_seq1, ground_truth_data_seq1, data_tuto_seq1)
-    plot_curves(my_data_seq2, ground_truth_data_seq2, data_tuto_seq2)
+    data = [my_data_seq1,
+            ground_truth_data_seq1,
+            data_tuto_seq1]
     
+    plot_data(data)
