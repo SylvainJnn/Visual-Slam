@@ -9,8 +9,6 @@ class data:
         self.pointclouds = new_pointclouds
 
 
-
-
 def plot_data(data):
     for d in data:
         dx = [points[0] for points in d.pointclouds]
@@ -50,7 +48,6 @@ def read_tuto_data(filename):
             data.append([x, z])
     return data
 
-
 def read_data_pandas(filename):
     # read file
     df = pd.read_csv(filename, delim_whitespace=True, header=None)
@@ -67,7 +64,6 @@ if __name__ == "__main__":
     data_tuto_seq1 = data("data_tuto_seq1",
                            read_tuto_data("poses/tuto_poses_seq1.txt"))
     
-
     data = [my_data_seq1,
             ground_truth_data_seq1,
             data_tuto_seq1]
