@@ -1,5 +1,3 @@
-// basé sur le code de Survey 1, écrire un VO pour monocular et stereo camera 
-// demander à chat gpt quand on fera les 7 points du code 
 #include <iostream>
 #include <vector>
 #include <string>
@@ -43,7 +41,7 @@ class VisualOdometry_monocular
         // }
 
 
-        cv::Mat estimate_motion()
+        cv::Mat motion_estimation()
         {
             // 3 - Compute essential matrix for image pair Ik-1 and Ik 
             cv::Mat essential_matrix, mask_essential_matrix; 
@@ -161,7 +159,7 @@ class VisualOdometry_monocular
                 // 3 - Compute essential matrix for image pair Ik-1 and Ik 
                 // 4 - Decompose essential matrix into Rk and tk, and from Tk
                 // 5 - Compute relatice scale and resacle tk accordingly // fait dans Recoverpose
-                Ti = estimate_motion();
+                Ti = motion_estimation();
                 
                 // 6 - Concatenate transformation by computing Ck = Ck-1 Tk
                 //Ci = Ci.mul(Ti);//...(C x Ti)
@@ -169,7 +167,7 @@ class VisualOdometry_monocular
 
                 // std::cout << "Ti  :\n" << Ti <<std::endl;
                 // std::cout << " Ci :\n" << Ci <<std::endl;
-                write_pose("poses/my_poses_seq1.txt", Ci);
+                write_pose("poses/my_poses_seq1_3000.txt", Ci);
                 std::cout << image_index <<std::endl;
             }
         }
@@ -190,7 +188,7 @@ class VisualOdometry_monocular
         std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
 
         
-        cv::Ptr<cv::Feature2D> orb = cv::ORB::create(); // we can change the number 
+        cv::Ptr<cv::Feature2D> orb = cv::ORB::create(3000); // we can change the number 
 
         // TODO Je ne sais pas porquoi ces params la
         cv::Ptr<cv::flann::IndexParams> index_params = cv::makePtr<cv::flann::LshIndexParams>(6, 12, 1);
@@ -273,7 +271,7 @@ class VisualOdometry_monocular
         {
             std::string poses_path = folder_path;// + "my_poses.txt";
             std::ofstream pose_file(poses_path, std::ios::app);
-            if (pose_file.is_open()) 
+            if(pose_file.is_open()) 
             {
                 for(int i = 0; i < pose.rows; i++)
                 {
@@ -296,7 +294,8 @@ class VisualOdometry_monocular
 
         void printMatches(const std::vector<cv::DMatch>& matches) 
         {
-            for (size_t i = 0; i < matches.size(); i++) {
+            for (size_t i = 0; i < matches.size(); i++) 
+            {
                 std::cout << "Match " << i << ":\n"
                         << "  QueryIdx: " << matches[i].queryIdx
                         << ", TrainIdx: " << matches[i].trainIdx
@@ -308,7 +307,8 @@ class VisualOdometry_monocular
 
         void printMatchesArray(const std::vector<std::vector<cv::DMatch>>& matches_array) 
         {
-            for (size_t i = 0; i < matches_array.size(); i++) {
+            for (size_t i = 0; i < matches_array.size(); i++) 
+            {
                 std::cout << "Match array" << i << ":\n";
                 printMatches(matches_array[i]);
             }
