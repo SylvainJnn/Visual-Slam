@@ -22,6 +22,7 @@ public:
     cv::Mat fuse_R_t(cv::Mat R, cv::Mat t);
 
     void main_2D_to_2D();
+    void main_3D_to_2D();
 
 private:
     // functions to get dataset information

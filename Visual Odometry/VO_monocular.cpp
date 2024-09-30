@@ -163,6 +163,9 @@ void VisualOdometry_monocular::main_2D_to_2D()
     cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
     Ci = get_first_pose(data_directory);
 
+    // write first the first pose
+    write_pose("poses/my_poses_seq2_000.txt", Ci);
+
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
     orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors);
 
@@ -189,6 +192,7 @@ void VisualOdometry_monocular::main_2D_to_2D()
 
 void VisualOdometry_monocular::main_3D_to_2D()
 {
+    std::cout << "DEBUT" << std::endl;
     // 1 - get images et setup calibrations 
     get_images(data_directory);
     get_calibration(data_directory);
@@ -197,9 +201,35 @@ void VisualOdometry_monocular::main_3D_to_2D()
     cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
     Ci = get_first_pose(data_directory);
 
-    orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors);
-    extract_and_matche_features(1);
-    cv::sfm::triangulatePoints() // cv::triangulatePoints()
+    // 1.2
+    // get find q_previous and q_current: the 2D points in the image
+    orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors); // extract img1
+    extract_and_matche_features(1);                                                          // extract img2 and matche f1 & f2
+    
+    // 1.3  
+    // projection Matrice for each iamges
+    cv::Mat P_previous, P_current; 
+    // turn the first 3 lines and 4th column of Ci : 4x4 -> 3x4
+    P_previous = intrinsic_matrix * Ci(cv::Range(0, 3), cv::Range::all());
+
+    // CHANGER UNE FOIS QUE CA MARCHEN MOTION ESTIMATION DOIT PRENDRE Ri ti EN sortit
+    Ti = motion_estimation();
+    P_current = intrinsic_matrix * Ti(cv::Range(0, 3), cv::Range::all());
+
+    // Triangulate points
+    cv::Mat points4D; // output of the function  // FIND better name
+    cv::triangulatePoints(P_previous, 
+                          P_current, 
+                          q_previous, 
+                          q_current, 
+                          points4D);
+
+    for (int i = 0; i < points4D.cols; i++) 
+    {
+        std::cout<< points4D.col(i) << std::endl;
+    }
+    
+    //cv::sfm::triangulatePoints() // cv::triangulatePoints()
 
 
 }
@@ -324,7 +354,7 @@ void VisualOdometry_monocular::printMatchesArray(const std::vector<std::vector<c
 int main()
 {
     VisualOdometry_monocular VO = VisualOdometry_monocular("example/KITTI_sequence_2");
-    VO.main_2D_to_2D();
+    VO.main_3D_to_2D();
     return(0);
 }
 
