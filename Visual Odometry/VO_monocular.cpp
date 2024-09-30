@@ -39,7 +39,12 @@ VisualOdometry_monocular::VisualOdometry_monocular(std::string new_data_director
 //     return(0);
 // }
 
-
+/**
+ * @brief compute the displacement between the current frame (fi) and the previous frame (fi-1)
+ * @param q_current contains the keypoints of the frame fi
+ * @param q_previous contains the keypoints of the frame fi-1
+ * @return Ti Matrice that contains homogenous coordinates. It represents the displacement between Ti-1 and Ti
+ */
 cv::Mat VisualOdometry_monocular::motion_estimation()
 {
     // 3 - Compute essential matrix for image pair Ik-1 and Ik 
@@ -68,21 +73,18 @@ cv::Mat VisualOdometry_monocular::motion_estimation()
     return(Ti);
 }
 
-int VisualOdometry_monocular::extract_and_matche_features(int image_index) // en input le numéros de l'image actuelle 
+/**
+ * @brief 
+ *  A - compute keypoints and descriptors
+ *  B - match them
+ *  C - filter only the good match
+ *  D - put in arrays q_i: coordinates vector of the matching keypoints on image i
+ * @param image_index : index of the current image
+ * @return q_current : vector of points representing the coordinates of the keypoints in the current image (image ith)
+ * @return q_previous : vector of points representing the coordinates of the matching keypoints in the previous image (image (i-1)th)
+ */
+int VisualOdometry_monocular::extract_and_matche_features(int image_index) 
 {
-    /*
-    A - compute keypoints and descriptors
-    B - match them
-    C - filter only the good match
-    D - put in arrays q_i: coordinates vector of the matching keypoints on image i
-
-    Input
-    - image_index : index of the current image
-
-    Output:
-    - q_current : vector of points representing the coordinates of the keypoints in the current image (image ith)
-    - q_previous : vector of points representing the coordinates of the matching keypoints in the previous image (image i-1th)
-    */
     // A - compute keypoints and descriptors
     previous_descriptors = current_descriptors.clone();
     previous_keypoints = current_keypoints;
@@ -136,19 +138,22 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index) // en
     return(0);
 }
 
+/**
+ * @brief furse the Matrice R and T into T, the homogenous matrice
+ * @param R Rotation matrice
+ * @param t Translation vector
+ * @return T the homogenous matrice contaning [R T]
+ */
 cv::Mat VisualOdometry_monocular::fuse_R_t(cv::Mat R, cv::Mat t)
 {
     cv::Mat T = cv::Mat::eye(4, 4, CV_32F); // Initialiser à une matrice identité 4x4
     R.copyTo(T(cv::Rect(0, 0, 3, 3))); // Copy R in the 3 first lines and columns of M
     t.copyTo(T(cv::Rect(3, 0, 1, 3))); // Copy t dans in the last column of M
-    
-    // std::cout << "T = \n" << T << std::endl;
 
     return(T);
 }
 
-// main algo --> changer de nom ?
-void VisualOdometry_monocular::main()
+void VisualOdometry_monocular::main_2D_to_2D()
 {
     // 1 - get images et setup calibrations 
     get_images(data_directory);
@@ -177,12 +182,33 @@ void VisualOdometry_monocular::main()
 
         // std::cout << "Ti  :\n" << Ti <<std::endl;
         // std::cout << " Ci :\n" << Ci <<std::endl;
-        write_pose("poses/my_poses_seq2_vccheck.txt", Ci);
+        write_pose("poses/my_poses_seq2_000.txt", Ci);
         std::cout << image_index <<std::endl;
     }
 }
 
+void VisualOdometry_monocular::main_3D_to_2D()
+{
+    // 1 - get images et setup calibrations 
+    get_images(data_directory);
+    get_calibration(data_directory);
+    
+    cv::Mat Ti = cv::Mat::zeros(4, 4, CV_32F); // Transform from image i-1 and i
+    cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
+    Ci = get_first_pose(data_directory);
 
+    orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors);
+    extract_and_matche_features(1);
+    cv::sfm::triangulatePoints() // cv::triangulatePoints()
+
+
+}
+
+/**
+ * @brief get images from dataset
+ * @param folder_path path of the images
+ * @return images a vector or matrice. Each elecment of the vector is an image
+ */
 int VisualOdometry_monocular::get_images(const std::string& folder_path)
 {
     std::string images_folder_path = folder_path + "/image_l/*.png";
@@ -193,18 +219,14 @@ int VisualOdometry_monocular::get_images(const std::string& folder_path)
     return(0);
 }
 
-// get calibration
+/**
+ * @brief Read calib.txt file and get the intrinsict and projection matrix 
+ * @param folder_path : path of the file containning the calibration
+ * @return intrinsic_matrix 
+ * @return projection_matrix
+ */
 int VisualOdometry_monocular::get_calibration(const std::string& folder_path)
 {
-    /*
-    Read calib.txt file and get the intrinsict and projection matrix 
-
-    Input
-    - folder_path : path of the file containning the calibration
-
-    Output:
-    
-    */
     std::string calibration_path = folder_path + "/calib.txt";  
     float value;
     std::ifstream file(calibration_path);
@@ -223,6 +245,11 @@ int VisualOdometry_monocular::get_calibration(const std::string& folder_path)
     return(1);
 }
 
+/**
+ * @brief get the first pose of the dataset form poses.txt
+ * @param folder_path : path of the file containning the ground truth poses
+ * @return C0, the first pose
+ */
 cv::Mat VisualOdometry_monocular::get_first_pose(const std::string& folder_path)
 {
     cv::Mat C0 = cv::Mat::eye(4, 4, CV_32F);
@@ -241,17 +268,22 @@ cv::Mat VisualOdometry_monocular::get_first_pose(const std::string& folder_path)
     return(C0);
 }
 
-int VisualOdometry_monocular::write_pose(const std::string& folder_path, const cv::Mat& pose)
+/**
+ * @brief write poses in a txt file
+ * @param folder_path : path to write the poses
+ * @param poses : matrice containing all the computer poses
+ */
+int VisualOdometry_monocular::write_pose(const std::string& folder_path, const cv::Mat& poses)
 {
     std::string poses_path = folder_path;// + "my_poses.txt";
     std::ofstream pose_file(poses_path, std::ios::app);
     if(pose_file.is_open()) 
     {
-        for(int i = 0; i < pose.rows; i++)
+        for(int i = 0; i < poses.rows; i++)
         {
-            for(int j = 0; j < pose.cols ; j++)
+            for(int j = 0; j < poses.cols ; j++)
             {
-                pose_file << pose.at<float>(i,j) << " ";
+                pose_file << poses.at<float>(i,j) << " ";
             }
         }
         pose_file << std::endl;
@@ -292,7 +324,7 @@ void VisualOdometry_monocular::printMatchesArray(const std::vector<std::vector<c
 int main()
 {
     VisualOdometry_monocular VO = VisualOdometry_monocular("example/KITTI_sequence_2");
-    VO.main();
+    VO.main_2D_to_2D();
     return(0);
 }
 
@@ -307,6 +339,11 @@ int main()
 - il faut comprendre la partie triangulation MAIS on sait que recover pose fait le taff à notre place
 */
 
+/*
 
+    mettre les q_current et previous en var local !!
+    ajouter _var au attribut "globaux"
+
+*/
 
 

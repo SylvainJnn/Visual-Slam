@@ -21,7 +21,7 @@ public:
     int extract_and_matche_features(int image_index);
     cv::Mat fuse_R_t(cv::Mat R, cv::Mat t);
 
-    void main();
+    void main_2D_to_2D();
 
 private:
     // functions to get dataset information
@@ -29,7 +29,7 @@ private:
     int get_calibration(const std::string& folder_path);
     cv::Mat get_first_pose(const std::string& folder_path);
 
-    int write_pose(const std::string& folder_path, const cv::Mat& pose);
+    int write_pose(const std::string& folder_path, const cv::Mat& poses);
 
     // print matched between two images -> use for debug
     void printMatches(const std::vector<cv::DMatch>& matches);
