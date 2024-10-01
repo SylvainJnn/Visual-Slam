@@ -45,7 +45,10 @@ VisualOdometry_monocular::VisualOdometry_monocular(std::string new_data_director
  * @param q_previous contains the keypoints of the frame fi-1
  * @return Ti Matrice that contains homogenous coordinates. It represents the displacement between Ti-1 and Ti
  */
-cv::Mat VisualOdometry_monocular::motion_estimation()
+int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& q_current,
+                                                std::vector<cv::Point2f>& q_previous,
+                                                cv::Mat& Ri, 
+                                                cv::Mat& ti)
 {
     // 3 - Compute essential matrix for image pair Ik-1 and Ik 
     cv::Mat essential_matrix, mask_essential_matrix; 
@@ -53,7 +56,7 @@ cv::Mat VisualOdometry_monocular::motion_estimation()
 
     // 4 - Decompose essential matriintrinsic_matrixce to Ri and ti
     // Attention, several Rotation matrice are possible
-    cv::Mat Ri, ti; // q dans le bon ordre ? 
+    
     
     cv::recoverPose(essential_matrix, q_previous, q_current, intrinsic_matrix, Ri, ti);
 
@@ -64,16 +67,16 @@ cv::Mat VisualOdometry_monocular::motion_estimation()
     // std::cout << "ti \n " << ti <<std::endl;
     // std::cout << "Ri \n " <<Ri <<std::endl;
 
-    cv::Mat Ti;
+    // cv::Mat Ti;
 
     // std::cout << "Ri  :\n" << Ri <<std::endl;
     // std::cout << "ti  :\n" << ti <<std::endl;
-    Ti = fuse_R_t(Ri, ti);
+    // Ti = fuse_R_t(Ri, ti);
     // write_pose("poses/transform.txt", Ti);
-    return(Ti);
+    return(0);
 }
 
-/**
+/** REFAIRE
  * @brief 
  *  A - compute keypoints and descriptors
  *  B - match them
@@ -83,7 +86,13 @@ cv::Mat VisualOdometry_monocular::motion_estimation()
  * @return q_current : vector of points representing the coordinates of the keypoints in the current image (image ith)
  * @return q_previous : vector of points representing the coordinates of the matching keypoints in the previous image (image (i-1)th)
  */
-int VisualOdometry_monocular::extract_and_matche_features(int image_index) 
+int VisualOdometry_monocular::extract_and_matche_features(int image_index, 
+                                                          cv::Mat& current_descriptors, 
+                                                          cv::Mat& previous_descriptors, 
+                                                          std::vector<cv::KeyPoint>& current_keypoints,  
+                                                          std::vector<cv::KeyPoint>& previous_keypoints,
+                                                          std::vector<cv::Point2f>& q_current,
+                                                          std::vector<cv::Point2f>& q_previous) 
 {
     // A - compute keypoints and descriptors
     previous_descriptors = current_descriptors.clone();
@@ -155,6 +164,7 @@ cv::Mat VisualOdometry_monocular::fuse_R_t(cv::Mat R, cv::Mat t)
 
 void VisualOdometry_monocular::main_2D_to_2D()
 {
+    std::cout << "Visual odometry monocular: 2D to 2D" << std::endl;
     // 1 - get images et setup calibrations 
     get_images(data_directory);
     get_calibration(data_directory);
@@ -163,8 +173,19 @@ void VisualOdometry_monocular::main_2D_to_2D()
     cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
     Ci = get_first_pose(data_directory);
 
+    cv::Mat current_descriptors;
+    cv::Mat previous_descriptors;
+
+    std::vector<cv::KeyPoint> current_keypoints; 
+    std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
+
+    std::vector<cv::Point2f> q_current;
+    std::vector<cv::Point2f> q_previous;
+
+    cv::Mat Ri, ti; 
+
     // write first the first pose
-    write_pose("poses/my_poses_seq2_000.txt", Ci);
+    write_pose("poses/my_poses_seq2_new.txt", Ci);
 
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
     orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors);
@@ -172,27 +193,38 @@ void VisualOdometry_monocular::main_2D_to_2D()
     for(size_t image_index = 1; image_index < images.size(); image_index++)
     {          
         // 2 - extract and matche feature between Ik-1 and Ik || Todo, only extract one image at the same time (put old image OR feature in a pointer variable )
-        extract_and_matche_features((int) image_index);
+        extract_and_matche_features((int) image_index, 
+                                    current_descriptors, 
+                                    previous_descriptors, 
+                                    current_keypoints,  
+                                    previous_keypoints,
+                                    q_current,
+                                    q_previous);
         
         // 3 - Compute essential matrix for image pair Ik-1 and Ik 
         // 4 - Decompose essential matrix into Rk and tk, and from Tk
         // 5 - Compute relatice scale and resacle tk accordingly // fait dans Recoverpose
-        Ti = motion_estimation();
-        
+        motion_estimation(q_current, 
+                          q_previous,
+                          Ri, 
+                          ti);
+
+        Ti = fuse_R_t(Ri, ti);
         // 6 - Concatenate transformation by computing Ck = Ck-1 Tk
         //Ci = Ci.mul(Ti);//...(C x Ti)
         Ci = Ci * Ti.inv();
 
         // std::cout << "Ti  :\n" << Ti <<std::endl;
         // std::cout << " Ci :\n" << Ci <<std::endl;
-        write_pose("poses/my_poses_seq2_000.txt", Ci);
+        write_pose("poses/my_poses_seq2_new.txt", Ci);
         std::cout << image_index <<std::endl;
     }
+    std::cout << "Over" <<std::endl;
 }
 
 void VisualOdometry_monocular::main_3D_to_2D()
 {
-    std::cout << "DEBUT" << std::endl;
+    std::cout << "Visual odometry monocular: 2D to 2D" << std::endl;
     // 1 - get images et setup calibrations 
     get_images(data_directory);
     get_calibration(data_directory);
@@ -201,11 +233,31 @@ void VisualOdometry_monocular::main_3D_to_2D()
     cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
     Ci = get_first_pose(data_directory);
 
-    // 1.2
+    cv::Mat current_descriptors;
+    cv::Mat previous_descriptors;
+
+    std::vector<cv::KeyPoint> current_keypoints; 
+    std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
+
+    std::vector<cv::Point2f> q_current;
+    std::vector<cv::Point2f> q_previous;
+
+    cv::Mat Ri, ti; 
+
+    // write first the first pose
+    write_pose("poses/my_poses_seq2__3Dto2D", Ci);
+
+    // 1.2 Extract and match features
     // get find q_previous and q_current: the 2D points in the image
     orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors); // extract img1
-    extract_and_matche_features(1);                                                          // extract img2 and matche f1 & f2
-    
+    extract_and_matche_features(1,  // extract img2 and matche f1 & f2
+                                current_descriptors, 
+                                previous_descriptors, 
+                                current_keypoints,  
+                                previous_keypoints,
+                                q_current,
+                                q_previous);
+                                                            
     // 1.3  
     // projection Matrice for each iamges
     cv::Mat P_previous, P_current; 
@@ -213,8 +265,20 @@ void VisualOdometry_monocular::main_3D_to_2D()
     P_previous = intrinsic_matrix * Ci(cv::Range(0, 3), cv::Range::all());
 
     // CHANGER UNE FOIS QUE CA MARCHEN MOTION ESTIMATION DOIT PRENDRE Ri ti EN sortit
-    Ti = motion_estimation();
-    P_current = intrinsic_matrix * Ti(cv::Range(0, 3), cv::Range::all());
+    motion_estimation(q_current, 
+                      q_previous,
+                      Ri, 
+                      ti);
+
+
+    
+    cv::Mat Rti;
+    cv::hconcat(Ri, ti, Rti); 
+    Rti.convertTo(Rti, CV_32F); // Convert to from double to float
+
+    P_current = intrinsic_matrix * Rti;
+
+    // std::cout<< P_current << std::endl;
 
     // Triangulate points
     cv::Mat points4D; // output of the function  // FIND better name
@@ -224,13 +288,59 @@ void VisualOdometry_monocular::main_3D_to_2D()
                           q_current, 
                           points4D);
 
-    for (int i = 0; i < points4D.cols; i++) 
-    {
-        std::cout<< points4D.col(i) << std::endl;
-    }
     
-    //cv::sfm::triangulatePoints() // cv::triangulatePoints()
+    cv::Mat X = points4D.row(0);
+    cv::Mat Y = points4D.row(1);
+    cv::Mat Z = points4D.row(2);
+    cv::Mat W = points4D.row(3);    
 
+    // Diviser Xn, Yn, Zn par Wn
+    cv::Mat Xn = X / W;
+    cv::Mat Yn = Y / W;
+    cv::Mat Zn = Z / W;
+
+    // Créer la nouvelle matrice 3xN
+    cv::Mat points3D;
+    cv::vconcat(Xn, Yn, points3D); // Ajouter Xn et Yn
+    cv::vconcat(points3D, Zn, points3D); // Ajouter Zn
+
+    std::cout << points3D.col(10) << std::endl;
+
+    // put in 3D ? 
+
+    for(size_t image_index = 2; image_index < images.size(); image_index++)
+    {          
+        // 2.2 - extract and matche feature between Ik-1 and Ik
+        extract_and_matche_features((int) image_index, 
+                                    current_descriptors, 
+                                    previous_descriptors, 
+                                    current_keypoints,  
+                                    previous_keypoints,
+                                    q_current,
+                                    q_previous);
+        
+        // PNP ransac
+
+
+        // 3 - Compute essential matrix for image pair Ik-1 and Ik 
+        // 4 - Decompose essential matrix into Rk and tk, and from Tk
+        // 5 - Compute relatice scale and resacle tk accordingly // fait dans Recoverpose
+        motion_estimation(q_current, 
+                          q_previous,
+                          Ri, 
+                          ti);
+
+        Ti = fuse_R_t(Ri, ti);
+        // 6 - Concatenate transformation by computing Ck = Ck-1 Tk
+        //Ci = Ci.mul(Ti);//...(C x Ti)
+        Ci = Ci * Ti.inv();
+
+        // std::cout << "Ti  :\n" << Ti <<std::endl;
+        // std::cout << " Ci :\n" << Ci <<std::endl;
+        write_pose("poses/my_poses_seq2_new.txt", Ci);
+        std::cout << image_index <<std::endl;
+    }
+    std::cout << "Over" <<std::endl;
 
 }
 
