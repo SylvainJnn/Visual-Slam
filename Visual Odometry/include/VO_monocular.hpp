@@ -17,8 +17,18 @@ public:
     VisualOdometry_monocular(std::string new_data_directory);
     // ~VisualOdometry_monocular();
 
-    cv::Mat motion_estimation();
-    int extract_and_matche_features(int image_index);
+    int motion_estimation(std::vector<cv::Point2f>& q_current,
+                          std::vector<cv::Point2f>& q_previous,
+                          cv::Mat& Ri, 
+                          cv::Mat& ti);
+                              
+    int extract_and_matche_features(int image_index, 
+                                    cv::Mat& current_descriptors, 
+                                    cv::Mat& previous_descriptors, 
+                                    std::vector<cv::KeyPoint>& current_keypoints,  
+                                    std::vector<cv::KeyPoint>& previous_keypoints,
+                                    std::vector<cv::Point2f>& q_current,
+                                    std::vector<cv::Point2f>& q_previous);
     cv::Mat fuse_R_t(cv::Mat R, cv::Mat t);
 
     void main_2D_to_2D();
@@ -44,11 +54,14 @@ private:
     cv::Mat intrinsic_matrix = cv::Mat::zeros(3, 3, CV_32F);
     cv::Mat projection_matrix = cv::Mat::zeros(4, 4, CV_32F);
 
-    cv::Mat current_descriptors;
-    cv::Mat previous_descriptors;
+    // cv::Mat current_descriptors;
+    // cv::Mat previous_descriptors;
 
-    std::vector<cv::KeyPoint> current_keypoints; 
-    std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
+    // std::vector<cv::KeyPoint> current_keypoints; 
+    // std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
+
+    // std::vector<cv::Point2f> q_current;
+    // std::vector<cv::Point2f> q_previous;
 
     
     cv::Ptr<cv::Feature2D> orb = cv::ORB::create(3000); // we can change the number 
@@ -58,8 +71,7 @@ private:
     cv::Ptr<cv::flann::SearchParams> search_params = cv::makePtr<cv::flann::SearchParams>(50);
     cv::Ptr<cv::FlannBasedMatcher> my_flann = cv::makePtr<cv::FlannBasedMatcher>(index_params, search_params);
 
-    std::vector<cv::Point2f> q_current;
-    std::vector<cv::Point2f> q_previous;
+    
 };
 
 #endif // VO_MONOCULAR_HPP
