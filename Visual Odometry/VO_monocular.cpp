@@ -147,6 +147,113 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
     return(0);
 }
 
+int VisualOdometry_monocular::triangulate(cv::Mat& P_current,
+                                        cv::Mat& P_previous,
+                                        std::vector<cv::Point2f>& q_current,
+                                        std::vector<cv::Point2f>& q_previous,
+                                        std::vector<cv::Point3f>& points3D)
+{
+    // Triangulate points
+    //points4D.release(); // output of the function  // FIND better name
+    cv::Mat points4D;
+
+    std::cout << P_previous.size() << std::endl;
+    std::cout << P_current.size() << std::endl;
+    std::cout << " "<< std::endl;
+    std::cout << P_previous.size() << std::endl;
+    std::cout << P_current.size() << std::endl;
+
+    cv::triangulatePoints(P_previous, 
+                          P_current, 
+                          q_previous, 
+                          q_current,
+                          points4D);
+
+    // CHECK
+    std::cout << " APRES TRIANGULATE " << std::endl;
+    std::cout << "q_previous"<< q_previous.size() << std::endl;
+    std::cout << "q_current "<< q_current.size() << std::endl;
+    std::cout << "points4D "<< points4D.size() << std::endl;
+    std::cout << " FIN TRIANGULATE " << std::endl;
+
+    // set the 4D points to 3D
+    cv::Mat X = points4D.row(0);
+    cv::Mat Y = points4D.row(1);
+    cv::Mat Z = points4D.row(2);
+    cv::Mat W = points4D.row(3);    
+
+    // Diviser Xn, Yn, Zn par Wn
+    cv::Mat Xn = X / W;
+    cv::Mat Yn = Y / W;
+    cv::Mat Zn = Z / W;
+
+    // std::vector<cv::Point3f> points3D;
+    points3D.clear();
+    points3D.reserve(points4D.cols); // Reserve space for points
+    // Fill points3D with the converted coordinates
+    for (int i = 0; i < points4D.cols; ++i) 
+    {
+        points3D.emplace_back(Xn.at<float>(i), Yn.at<float>(i), Zn.at<float>(i));
+    }
+
+    return(0);
+}
+
+int VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
+                                        std::vector<cv::Point3f>& points3D,
+                                        cv::Mat& Rti)
+{
+    // Vecteurs de rotation et de translation à calculer
+    // cv::Mat rvec, tvec;
+
+    // Coefficients de distorsion (ici on suppose qu'il n'y en a pas)
+    cv::Mat distCoeffs = cv::Mat::zeros(4, 1, CV_64F);
+
+    // Paramètres pour solvePnPRansac
+    int iterationsCount = 100;      // Nombre d'itérations
+    float reprojectionError = 8.0;  // Tolérance d'erreur de reprojection en pixels
+    double confidence = 0.99;       // Confiance de l'algorithme RANSAC
+    cv::Mat inliers;                // Matrice qui stockera les inliers
+    
+    // Estimation de la pose avec solvePnPRansac
+    // std::cout << "PRINT TEST\n\n" << std::endl;
+    // std::cout << "Number of object points: " << points3D.size() << std::endl;
+    // std::cout << "Number of image previous points: " << q_previous.size() << std::endl;
+    // std::cout << "Number of image points: " << q_current.size() << std::endl;
+    // std::cout << "PRINT TEST fi,\n\n" << std::endl;
+
+    // Ri.release();
+    // ti.release();
+    Rti.release();
+
+    cv::Mat Rvec, tvec;
+    // bool success = cv::solvePnPRansac(points3D, 
+    //                                   q_current, 
+    //                                   intrinsic_matrix, 
+    //                                   distCoeffs, 
+    //                                   Rvec, 
+    //                                   tvec, 
+    //                                   false, 
+    //                                   iterationsCount, 
+    //                                   reprojectionError, 
+    //                                   confidence, 
+    //                                   inliers);
+
+    cv::solvePnP(points3D, q_current, intrinsic_matrix, cv::Mat(), Rvec, tvec);
+
+    std::cout << "DING,\n\n" << std::endl;
+    // ====================
+    
+    cv::Mat Ri;
+    cv::Rodrigues(Rvec, Ri);
+    cv::hconcat(Ri, tvec, Rti); 
+    Rti.convertTo(Rti, CV_32F); // Convert to from double to float
+    
+    // std::cout << "Rti " << Rti.size()<< std::endl;
+
+    return(0);
+}
+
 /**
  * @brief furse the Matrice R and T into T, the homogenous matrice
  * @param R Rotation matrice
@@ -230,8 +337,8 @@ void VisualOdometry_monocular::main_3D_to_2D()
     get_calibration(data_directory);
     
     cv::Mat Ti = cv::Mat::zeros(4, 4, CV_32F); // Transform from image i-1 and i
-    cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
-    Ci = get_first_pose(data_directory);
+    cv::Mat C0 = cv::Mat::eye(4, 4, CV_32F); // current pose
+    C0 = get_first_pose(data_directory);
 
     cv::Mat current_descriptors;
     cv::Mat previous_descriptors;
@@ -245,7 +352,7 @@ void VisualOdometry_monocular::main_3D_to_2D()
     cv::Mat Ri, ti; 
 
     // write first the first pose
-    write_pose("poses/my_poses_seq2__3Dto2D", Ci);
+    write_pose("poses/mono_3D_2D_my_poses_seq2.txt", C0);
 
     // 1.2 Extract and match features
     // get find q_previous and q_current: the 2D points in the image
@@ -262,7 +369,7 @@ void VisualOdometry_monocular::main_3D_to_2D()
     // projection Matrice for each iamges
     cv::Mat P_previous, P_current; 
     // turn the first 3 lines and 4th column of Ci : 4x4 -> 3x4
-    P_previous = intrinsic_matrix * Ci(cv::Range(0, 3), cv::Range::all());
+    P_previous = intrinsic_matrix * C0(cv::Range(0, 3), cv::Range::all());
 
     // CHANGER UNE FOIS QUE CA MARCHEN MOTION ESTIMATION DOIT PRENDRE Ri ti EN sortit
     motion_estimation(q_current, 
@@ -276,6 +383,9 @@ void VisualOdometry_monocular::main_3D_to_2D()
     cv::hconcat(Ri, ti, Rti); 
     Rti.convertTo(Rti, CV_32F); // Convert to from double to float
 
+    std::cout <<"INI\n";
+std::cout <<"RTI\n" << Rti;
+
     P_current = intrinsic_matrix * Rti;
 
     // std::cout<< P_current << std::endl;
@@ -287,8 +397,15 @@ void VisualOdometry_monocular::main_3D_to_2D()
                           q_previous, 
                           q_current, 
                           points4D);
-
     
+    std::cout << "PRINT TEST 4D" << std::endl;
+    std::cout << points4D.size() << std::endl;
+    std::cout << q_previous.size() << std::endl;
+    std::cout << q_current.size() << std::endl;
+    std::cout << P_previous.size() << std::endl;
+    std::cout << P_current.size() << std::endl;
+
+    // set the 4D points to 3D
     cv::Mat X = points4D.row(0);
     cv::Mat Y = points4D.row(1);
     cv::Mat Z = points4D.row(2);
@@ -299,16 +416,48 @@ void VisualOdometry_monocular::main_3D_to_2D()
     cv::Mat Yn = Y / W;
     cv::Mat Zn = Z / W;
 
-    // Créer la nouvelle matrice 3xN
-    cv::Mat points3D;
-    cv::vconcat(Xn, Yn, points3D); // Ajouter Xn et Yn
-    cv::vconcat(points3D, Zn, points3D); // Ajouter Zn
+    
 
-    std::cout << points3D.col(10) << std::endl;
 
-    // put in 3D ? 
+    // // Créer la nouvelle matrice 3xN
+    // cv::Mat points3D;
+    // cv::vconcat(Xn, Yn, points3D); // Ajouter Xn et Yn
+    // cv::vconcat(points3D, Zn, points3D); // Ajouter Zn
 
-    for(size_t image_index = 2; image_index < images.size(); image_index++)
+    // Create a vector of Point3f
+    std::vector<cv::Point3f> points3D;
+    points3D.reserve(points4D.cols); // Reserve space for points
+
+    // Fill points3D with the converted coordinates
+    for (int i = 0; i < points4D.cols; ++i) {
+        points3D.emplace_back(Xn.at<float>(i), 
+                              Yn.at<float>(i), 
+                              Zn.at<float>(i));
+    }
+
+
+    triangulate(P_current,
+                P_previous,
+                q_current,
+                q_previous,
+                points3D);
+
+    std::cout << "FIN BOUBLE "<< image_index << std::endl;
+
+    // 2.3 PNP ransac
+
+    find_Rti(q_current,
+                points3D,
+                Rti);
+
+    P_previous = P_current.clone(); 
+    P_current = intrinsic_matrix * Rti;
+    
+
+    write_pose("poses/mono_3D_2D_my_poses_seq2.txt", Rti);
+
+    
+    for(size_t image_index = 1; image_index < images.size(); image_index++)
     {          
         // 2.2 - extract and matche feature between Ik-1 and Ik
         extract_and_matche_features((int) image_index, 
@@ -319,25 +468,27 @@ void VisualOdometry_monocular::main_3D_to_2D()
                                     q_current,
                                     q_previous);
         
-        // PNP ransac
 
 
-        // 3 - Compute essential matrix for image pair Ik-1 and Ik 
-        // 4 - Decompose essential matrix into Rk and tk, and from Tk
-        // 5 - Compute relatice scale and resacle tk accordingly // fait dans Recoverpose
-        motion_estimation(q_current, 
-                          q_previous,
-                          Ri, 
-                          ti);
+        triangulate(P_current,
+                    P_previous,
+                    q_current,
+                    q_previous,
+                    points3D);
 
-        Ti = fuse_R_t(Ri, ti);
-        // 6 - Concatenate transformation by computing Ck = Ck-1 Tk
-        //Ci = Ci.mul(Ti);//...(C x Ti)
-        Ci = Ci * Ti.inv();
+        std::cout << "FIN BOUBLE "<< image_index << std::endl;
 
-        // std::cout << "Ti  :\n" << Ti <<std::endl;
-        // std::cout << " Ci :\n" << Ci <<std::endl;
-        write_pose("poses/my_poses_seq2_new.txt", Ci);
+        // 2.3 PNP ransac
+    
+        find_Rti(q_current,
+                 points3D,
+                 Rti);
+
+        P_previous = P_current.clone(); 
+        P_current = intrinsic_matrix * Rti;
+        
+
+        write_pose("poses/mono_3D_2D_my_poses_seq2.txt", Rti);
         std::cout << image_index <<std::endl;
     }
     std::cout << "Over" <<std::endl;

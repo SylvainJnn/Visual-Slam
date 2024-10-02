@@ -29,6 +29,17 @@ public:
                                     std::vector<cv::KeyPoint>& previous_keypoints,
                                     std::vector<cv::Point2f>& q_current,
                                     std::vector<cv::Point2f>& q_previous);
+
+    int triangulate(cv::Mat& P_current,
+                    cv::Mat& P_previous,
+                    std::vector<cv::Point2f>& q_current,
+                    std::vector<cv::Point2f>& q_previous,
+                    std::vector<cv::Point3f>& points3D);
+
+    int find_Rti(std::vector<cv::Point2f>& q_current,
+                 std::vector<cv::Point3f>& points3D,
+                 cv::Mat& Rti);
+
     cv::Mat fuse_R_t(cv::Mat R, cv::Mat t);
 
     void main_2D_to_2D();
