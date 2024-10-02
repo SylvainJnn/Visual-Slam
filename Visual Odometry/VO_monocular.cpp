@@ -157,24 +157,11 @@ int VisualOdometry_monocular::triangulate(cv::Mat& P_current,
     //points4D.release(); // output of the function  // FIND better name
     cv::Mat points4D;
 
-    std::cout << P_previous.size() << std::endl;
-    std::cout << P_current.size() << std::endl;
-    std::cout << " "<< std::endl;
-    std::cout << P_previous.size() << std::endl;
-    std::cout << P_current.size() << std::endl;
-
     cv::triangulatePoints(P_previous, 
                           P_current, 
                           q_previous, 
                           q_current,
                           points4D);
-
-    // CHECK
-    std::cout << " APRES TRIANGULATE " << std::endl;
-    std::cout << "q_previous"<< q_previous.size() << std::endl;
-    std::cout << "q_current "<< q_current.size() << std::endl;
-    std::cout << "points4D "<< points4D.size() << std::endl;
-    std::cout << " FIN TRIANGULATE " << std::endl;
 
     // set the 4D points to 3D
     cv::Mat X = points4D.row(0);
@@ -203,9 +190,6 @@ int VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
                                         std::vector<cv::Point3f>& points3D,
                                         cv::Mat& Rti)
 {
-    // Vecteurs de rotation et de translation à calculer
-    // cv::Mat rvec, tvec;
-
     // Coefficients de distorsion (ici on suppose qu'il n'y en a pas)
     cv::Mat distCoeffs = cv::Mat::zeros(4, 1, CV_64F);
 
@@ -214,17 +198,6 @@ int VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
     float reprojectionError = 8.0;  // Tolérance d'erreur de reprojection en pixels
     double confidence = 0.99;       // Confiance de l'algorithme RANSAC
     cv::Mat inliers;                // Matrice qui stockera les inliers
-    
-    // Estimation de la pose avec solvePnPRansac
-    // std::cout << "PRINT TEST\n\n" << std::endl;
-    // std::cout << "Number of object points: " << points3D.size() << std::endl;
-    // std::cout << "Number of image previous points: " << q_previous.size() << std::endl;
-    // std::cout << "Number of image points: " << q_current.size() << std::endl;
-    // std::cout << "PRINT TEST fi,\n\n" << std::endl;
-
-    // Ri.release();
-    // ti.release();
-    Rti.release();
 
     cv::Mat Rvec, tvec;
     // bool success = cv::solvePnPRansac(points3D, 
@@ -245,6 +218,7 @@ int VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
     // ====================
     
     cv::Mat Ri;
+    Rti.release();
     cv::Rodrigues(Rvec, Ri);
     cv::hconcat(Ri, tvec, Rti); 
     Rti.convertTo(Rti, CV_32F); // Convert to from double to float
@@ -377,7 +351,6 @@ void VisualOdometry_monocular::main_3D_to_2D()
                       Ri, 
                       ti);
 
-
     
     cv::Mat Rti;
     cv::hconcat(Ri, ti, Rti); 
@@ -416,9 +389,6 @@ std::cout <<"RTI\n" << Rti;
     cv::Mat Yn = Y / W;
     cv::Mat Zn = Z / W;
 
-    
-
-
     // // Créer la nouvelle matrice 3xN
     // cv::Mat points3D;
     // cv::vconcat(Xn, Yn, points3D); // Ajouter Xn et Yn
@@ -436,27 +406,9 @@ std::cout <<"RTI\n" << Rti;
     }
 
 
-    triangulate(P_current,
-                P_previous,
-                q_current,
-                q_previous,
-                points3D);
-
-    std::cout << "FIN BOUBLE "<< image_index << std::endl;
-
-    // 2.3 PNP ransac
-
-    find_Rti(q_current,
-                points3D,
-                Rti);
-
-    P_previous = P_current.clone(); 
-    P_current = intrinsic_matrix * Rti;
-    
-
     write_pose("poses/mono_3D_2D_my_poses_seq2.txt", Rti);
 
-    
+
     for(size_t image_index = 1; image_index < images.size(); image_index++)
     {          
         // 2.2 - extract and matche feature between Ik-1 and Ik
