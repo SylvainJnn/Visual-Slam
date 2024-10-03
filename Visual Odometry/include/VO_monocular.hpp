@@ -36,7 +36,7 @@ public:
                     std::vector<cv::Point2f>& q_previous,
                     std::vector<cv::Point3f>& points3D);
 
-    int find_Rti(std::vector<cv::Point2f>& q_current,
+    cv::Mat find_Rti(std::vector<cv::Point2f>& q_current,
                  std::vector<cv::Point3f>& points3D,
                  cv::Mat& Rti);
 

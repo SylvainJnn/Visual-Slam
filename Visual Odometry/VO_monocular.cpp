@@ -147,8 +147,8 @@ int VisualOdometry_monocular::triangulate(cv::Mat& P_current,
 }
 
 cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
-                                        std::vector<cv::Point3f>& points3D,
-                                        cv::Mat& Rti)
+                                            std::vector<cv::Point3f>& points3D,
+                                            cv::Mat& Rti)
 {
     std::cout << "debut find rti" << std::endl;
     // Coefficients de distorsion (ici on suppose qu'il n'y en a pas)
@@ -234,7 +234,7 @@ void VisualOdometry_monocular::main_2D_to_2D()
     cv::Mat Ri, ti; 
 
     // write first the first pose
-    write_pose("poses/my_poses_seq2_new.txt", Ci);
+    write_pose("poses/seq2_2D_2D.txt", Ci);
 
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
     orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors);
@@ -265,7 +265,7 @@ void VisualOdometry_monocular::main_2D_to_2D()
 
         // std::cout << "Ti  :\n" << Ti <<std::endl;
         // std::cout << " Ci :\n" << Ci <<std::endl;
-        write_pose("poses/my_poses_seq2_new.txt", Ci);
+        write_pose("poses/seq2_2D_2D.txt", Ci);
         std::cout << image_index <<std::endl;
     }
     std::cout << "Over" <<std::endl;
