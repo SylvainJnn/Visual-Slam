@@ -35,19 +35,6 @@ def read_data(filename):
             data.append([x, z])
     return data
 
-# def read_tuto_data(filename):
-#     data = []
-#     with open(filename, 'r') as file:
-#         for line in file:
-#             # sepearent element of the line 
-#             elements = line.split()
-#             # get 1st and 2d element --> (x, z)
-#             x = float(elements[0])  
-#             z = float(elements[1])  
-#             data.append([x, z])
-#     return data
-
-
 if __name__ == "__main__":
    
     ground_truth_seq1 = data('Ground truth data seq1', 
