@@ -20,24 +20,6 @@ VisualOdometry_monocular::VisualOdometry_monocular(std::string new_data_director
     data_directory = new_data_directory;
 }
 
-// int dont know (cv::Mat essential_matrix, cv::Mat R1, cv::Mat R2, cv::Mat t)
-// {
-//     // A - assemble all poential T
-//     cv::Mat T1, T2, T3, T4; 
-//     T1 = fuse_R_t(R1, t);
-//     T2 = fuse_R_t(R2, t);
-//     T3 = fuse_R_t(R1, -t);
-//     T4 = fuse_R_t(R2, -t);
-
-//     // triangulate to find the relative scale
-//     std::vector projections{K * T1, K * T2 ,K * T3, K * T4};
-
-//     // https://realitybytes.blog/tag/monocular-visual-odometry/
-
-
-//     // find bigger positives
-//     return(0);
-// }
 
 /**
  * @brief compute the displacement between the current frame (fi) and the previous frame (fi-1)
@@ -60,19 +42,6 @@ int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& q_curr
     
     cv::recoverPose(essential_matrix, q_previous, q_current, intrinsic_matrix, Ri, ti);
 
-    // cv::Mat R1, R2, t;
-    // cv::decomposeEssentialMat(essential_matrix, R1, R2, t);
-
-    // jesaispas(essential_matrix, R1, R2, t);
-    // std::cout << "ti \n " << ti <<std::endl;
-    // std::cout << "Ri \n " <<Ri <<std::endl;
-
-    // cv::Mat Ti;
-
-    // std::cout << "Ri  :\n" << Ri <<std::endl;
-    // std::cout << "ti  :\n" << ti <<std::endl;
-    // Ti = fuse_R_t(Ri, ti);
-    // write_pose("poses/transform.txt", Ti);
     return(0);
 }
 
@@ -134,24 +103,15 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
         q_current.push_back(current_keypoints[good.trainIdx].pt);
     }
 
-    //TEST
-    // cv::Mat img_matches;
-    // cv::drawMatches(images[image_index-1], previous_keypoints, 
-    //                 images[image_index], current_keypoints, 
-    //                 good_matches, img_matches, 
-    //                 cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-    // cv::resize(img_matches, img_matches, cv::Size(), 0.75, 0.75);
-    // cv::imshow("Good Matches VO", img_matches);
-    // cv::waitKey(0);
 
     return(0);
 }
 
 int VisualOdometry_monocular::triangulate(cv::Mat& P_current,
-                                        cv::Mat& P_previous,
-                                        std::vector<cv::Point2f>& q_current,
-                                        std::vector<cv::Point2f>& q_previous,
-                                        std::vector<cv::Point3f>& points3D)
+                                          cv::Mat& P_previous,
+                                          std::vector<cv::Point2f>& q_current,
+                                          std::vector<cv::Point2f>& q_previous,
+                                          std::vector<cv::Point3f>& points3D)
 {
     // Triangulate points
     //points4D.release(); // output of the function  // FIND better name
@@ -186,10 +146,11 @@ int VisualOdometry_monocular::triangulate(cv::Mat& P_current,
     return(0);
 }
 
-int VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
+cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
                                         std::vector<cv::Point3f>& points3D,
                                         cv::Mat& Rti)
 {
+    std::cout << "debut find rti" << std::endl;
     // Coefficients de distorsion (ici on suppose qu'il n'y en a pas)
     cv::Mat distCoeffs = cv::Mat::zeros(4, 1, CV_64F);
 
@@ -220,12 +181,19 @@ int VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
     cv::Mat Ri;
     Rti.release();
     cv::Rodrigues(Rvec, Ri);
+
+    // v A ENLEVER
+    cv::Mat Ti = fuse_R_t(Ri, tvec);
+
+    // v1
     cv::hconcat(Ri, tvec, Rti); 
     Rti.convertTo(Rti, CV_32F); // Convert to from double to float
     
     // std::cout << "Rti " << Rti.size()<< std::endl;
+    std::cout << "fin find rti" << std::endl;
 
-    return(0);
+    // CA AUSSI
+    return(Ti);
 }
 
 /**
@@ -290,7 +258,7 @@ void VisualOdometry_monocular::main_2D_to_2D()
                           Ri, 
                           ti);
 
-        Ti = fuse_R_t(Ri, ti);
+        cv::Mat Ti = fuse_R_t(Ri, ti);
         // 6 - Concatenate transformation by computing Ck = Ck-1 Tk
         //Ci = Ci.mul(Ti);//...(C x Ti)
         Ci = Ci * Ti.inv();
@@ -323,7 +291,7 @@ void VisualOdometry_monocular::main_3D_to_2D()
     std::vector<cv::Point2f> q_current;
     std::vector<cv::Point2f> q_previous;
 
-    cv::Mat Ri, ti; 
+    cv::Mat Ri, ti, Rti;
 
     // write first the first pose
     write_pose("poses/mono_3D_2D_my_poses_seq2.txt", C0);
@@ -352,61 +320,24 @@ void VisualOdometry_monocular::main_3D_to_2D()
                       ti);
 
     
-    cv::Mat Rti;
+    
     cv::hconcat(Ri, ti, Rti); 
     Rti.convertTo(Rti, CV_32F); // Convert to from double to float
 
     std::cout <<"INI\n";
-std::cout <<"RTI\n" << Rti;
+    std::cout <<"RTI\n" << Rti;
 
     P_current = intrinsic_matrix * Rti;
 
     // std::cout<< P_current << std::endl;
 
     // Triangulate points
-    cv::Mat points4D; // output of the function  // FIND better name
-    cv::triangulatePoints(P_previous, 
-                          P_current, 
-                          q_previous, 
-                          q_current, 
-                          points4D);
-    
-    std::cout << "PRINT TEST 4D" << std::endl;
-    std::cout << points4D.size() << std::endl;
-    std::cout << q_previous.size() << std::endl;
-    std::cout << q_current.size() << std::endl;
-    std::cout << P_previous.size() << std::endl;
-    std::cout << P_current.size() << std::endl;
-
-    // set the 4D points to 3D
-    cv::Mat X = points4D.row(0);
-    cv::Mat Y = points4D.row(1);
-    cv::Mat Z = points4D.row(2);
-    cv::Mat W = points4D.row(3);    
-
-    // Diviser Xn, Yn, Zn par Wn
-    cv::Mat Xn = X / W;
-    cv::Mat Yn = Y / W;
-    cv::Mat Zn = Z / W;
-
-    // // Créer la nouvelle matrice 3xN
-    // cv::Mat points3D;
-    // cv::vconcat(Xn, Yn, points3D); // Ajouter Xn et Yn
-    // cv::vconcat(points3D, Zn, points3D); // Ajouter Zn
-
-    // Create a vector of Point3f
-    std::vector<cv::Point3f> points3D;
-    points3D.reserve(points4D.cols); // Reserve space for points
-
-    // Fill points3D with the converted coordinates
-    for (int i = 0; i < points4D.cols; ++i) {
-        points3D.emplace_back(Xn.at<float>(i), 
-                              Yn.at<float>(i), 
-                              Zn.at<float>(i));
-    }
-
-
-    write_pose("poses/mono_3D_2D_my_poses_seq2.txt", Rti);
+    std::vector<cv::Point3f> points3D; // output of the function  // FIND better name
+    triangulate(P_current,
+                P_previous,
+                q_current,
+                q_previous,
+                points3D);
 
 
     for(size_t image_index = 1; image_index < images.size(); image_index++)
@@ -432,15 +363,19 @@ std::cout <<"RTI\n" << Rti;
 
         // 2.3 PNP ransac
     
-        find_Rti(q_current,
-                 points3D,
-                 Rti);
+        cv::Mat Ti = find_Rti(q_current,
+                                points3D,
+                                Rti);
+
+        C0 = C0 * Ti.inv();
 
         P_previous = P_current.clone(); 
-        P_current = intrinsic_matrix * Rti;
         
-
-        write_pose("poses/mono_3D_2D_my_poses_seq2.txt", Rti);
+        std::cout << "int mat" << std::endl;
+        P_current = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t] // il semblemrait que ça soit juste, cependant, je pense que 
+        
+        
+        write_pose("poses/mono_3D_2D_my_poses_seq2.txt", C0);// ici ce n'est pas bon, c'est pas p current non plus je pense 
         std::cout << image_index <<std::endl;
     }
     std::cout << "Over" <<std::endl;
@@ -581,12 +516,3 @@ int main()
 - L'axe y est vers le haut
 - il faut comprendre la partie triangulation MAIS on sait que recover pose fait le taff à notre place
 */
-
-/*
-
-    mettre les q_current et previous en var local !!
-    ajouter _var au attribut "globaux"
-
-*/
-
-
