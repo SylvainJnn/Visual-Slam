@@ -1,23 +1,22 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 
 
 class data:
-    def __init__(self, new_name, new_pointclouds):
+    def __init__(self, new_name, new_poses):
         self.name = new_name
-        self.pointclouds = new_pointclouds
+        self.poses = new_poses
 
 
 def plot_data(data):
     for d in data:
-        dx = [points[0] for points in d.pointclouds]
-        dz = [points[1] for points in d.pointclouds]
+        dx = [points[0] for points in d.poses]
+        dz = [points[1] for points in d.poses]
         plt.scatter(dx, dz, label=d.name)
 
     plt.xlabel('X')
     plt.ylabel('Z')
-    plt.title('Visual Odometetry point clouds')
+    plt.title('Visual Odometetry path poses')
     plt.legend()
     plt.grid(True)
     
@@ -36,22 +35,34 @@ def read_data(filename):
             data.append([x, z])
     return data
 
-def read_tuto_data(filename):
-    data = []
-    with open(filename, 'r') as file:
-        for line in file:
-            # sepearent element of the line 
-            elements = line.split()
-            # get 1st and 2d element --> (x, z)
-            x = float(elements[0])  
-            z = float(elements[1])  
-            data.append([x, z])
-    return data
+# def read_tuto_data(filename):
+#     data = []
+#     with open(filename, 'r') as file:
+#         for line in file:
+#             # sepearent element of the line 
+#             elements = line.split()
+#             # get 1st and 2d element --> (x, z)
+#             x = float(elements[0])  
+#             z = float(elements[1])  
+#             data.append([x, z])
+#     return data
 
-def read_data_pandas(filename):
-    # read file
-    df = pd.read_csv(filename, delim_whitespace=True, header=None)
-    # get x and z
-    data = df.iloc[:, [4, 11]].values.tolist()
-    return data
 
+if __name__ == "__main__":
+   
+    ground_truth_seq1 = data('Ground truth data seq1', 
+                             read_data("example/KITTI_sequence_1/poses.txt"))
+    
+    ground_truth_seq2 = data('Ground truth data seq2', 
+                             read_data("example/KITTI_sequence_2/poses.txt"))
+
+    # example_data_2D_2D = data('Example data', 
+    #                     read_data("poses/seq2_2D_2D.txt"))
+    
+    # example_data_23_2D = data('Example data', 
+    #                     read_data("poses/mono_3D_2D_my_poses_seq2.txt"))
+    
+    # plot_data([
+    #     ground_truth_seq2, 
+    #     example_data_2D_2D
+    #     ])
