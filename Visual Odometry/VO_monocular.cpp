@@ -4,6 +4,7 @@
 #include <fstream>
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/viz.hpp>
 #include "include/VO_monocular.hpp"
 
 using namespace std;
@@ -88,6 +89,13 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
             good_matches.push_back(matches[i][0]);
         }
     }
+
+
+    // // sort good_matches in descending order based on distance
+    // std::sort(good_matches.begin(), good_matches.end(), [](const cv::DMatch& a, const cv::DMatch& b) 
+    // {
+    //     return a.distance > b.distance; // Sort in descending order
+    // });
         
     // Filter the best match
     // std::vector<cv::Point2f> q_current;
@@ -103,6 +111,23 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
         q_current.push_back(current_keypoints[good.trainIdx].pt);
     }
 
+    if(true)
+    {
+        // E - Visualiser les correspondances entre les images avec une taille plus petite et en ne montrant que les correspondances
+        cv::Mat img_matches;
+
+        // Option pour ne pas dessiner les points individuels
+        cv::drawMatches(images[image_index - 1], previous_keypoints, images[image_index], current_keypoints, good_matches, img_matches, 
+                        cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+
+        // Redimensionner l'image résultante si elle est trop grande pour l'écran
+        double scale_factor = 0.7; // Facteur de redimensionnement (ajustez en fonction de la taille de vos images)
+        cv::resize(img_matches, img_matches, cv::Size(), scale_factor, scale_factor);
+
+        // Afficher les correspondances
+        cv::imshow("Good Matches", img_matches);
+        cv::waitKey(0); // Attend une touche pour fermer la fenêtre
+    }
 
     return(0);
 }
@@ -140,7 +165,7 @@ int VisualOdometry_monocular::triangulate(cv::Mat& P_current,
     // Fill points3D with the converted coordinates
     for (int i = 0; i < points4D.cols; ++i) 
     {
-        points3D.emplace_back(Xn.at<float>(i), Yn.at<float>(i), Zn.at<float>(i));
+        points3D.emplace_back(Xn.at<float>(i), Yn.at<float>(i), Zn.at<float>(i)); // AUTRE MANIERE CHEC FAST
     }
 
     return(0);
@@ -172,11 +197,9 @@ cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
     //                                   reprojectionError, 
     //                                   confidence, 
     //                                   inliers);
-
+    std::cout << "debut calcul PnP " << std::endl;
     cv::solvePnP(points3D, q_current, intrinsic_matrix, cv::Mat(), Rvec, tvec);
-
-    std::cout << "DING,\n\n" << std::endl;
-    // ====================
+    std::cout << "fin calcul PnP,\n\n" << std::endl;
     
     cv::Mat Ri;
     Rti.release();
@@ -234,7 +257,7 @@ void VisualOdometry_monocular::main_2D_to_2D()
     cv::Mat Ri, ti; 
 
     // write first the first pose
-    write_pose("poses/seq2_2D_2D.txt", Ci);
+    write_pose("poses/1.txt", Ci);
 
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
     orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors);
@@ -265,7 +288,7 @@ void VisualOdometry_monocular::main_2D_to_2D()
 
         // std::cout << "Ti  :\n" << Ti <<std::endl;
         // std::cout << " Ci :\n" << Ci <<std::endl;
-        write_pose("poses/seq2_2D_2D.txt", Ci);
+        write_pose("poses/1.txt", Ci);
         std::cout << image_index <<std::endl;
     }
     std::cout << "Over" <<std::endl;
@@ -293,8 +316,11 @@ void VisualOdometry_monocular::main_3D_to_2D()
 
     cv::Mat Ri, ti, Rti;
 
+    std::vector<cv::Point3f> points_viz;
+    std::vector<std::vector<cv::Point3f>> points_array;
+
     // write first the first pose
-    write_pose("poses/mono_3D_2D_my_poses_seq2.txt", C0);
+    write_pose("poses/3D_2D.txt", C0);
 
     // 1.2 Extract and match features
     // get find q_previous and q_current: the 2D points in the image
@@ -311,25 +337,18 @@ void VisualOdometry_monocular::main_3D_to_2D()
     // projection Matrice for each iamges
     cv::Mat P_previous, P_current; 
     // turn the first 3 lines and 4th column of Ci : 4x4 -> 3x4
-    P_previous = intrinsic_matrix * C0(cv::Range(0, 3), cv::Range::all());
+    P_previous = intrinsic_matrix * C0(cv::Range(0, 3), cv::Range::all()); // Matrice de projection = K * [R|t], ici R0 et t0
 
-    // CHANGER UNE FOIS QUE CA MARCHEN MOTION ESTIMATION DOIT PRENDRE Ri ti EN sortit
+    // CHANGER UNE FOIS QUE CA MARCHEN MOTION ESTIMATION DOIT PRENDRE Ri ti EN sortit / je sais plus pourquoi. pour la première étape il faut faire une motion estimation 2D 2D 
     motion_estimation(q_current, 
                       q_previous,
                       Ri, 
                       ti);
 
-    
-    
     cv::hconcat(Ri, ti, Rti); 
     Rti.convertTo(Rti, CV_32F); // Convert to from double to float
 
-    std::cout <<"INI\n";
-    std::cout <<"RTI\n" << Rti;
-
-    P_current = intrinsic_matrix * Rti;
-
-    // std::cout<< P_current << std::endl;
+    P_current = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t], ici R1 et t1
 
     // Triangulate points
     std::vector<cv::Point3f> points3D; // output of the function  // FIND better name
@@ -339,10 +358,16 @@ void VisualOdometry_monocular::main_3D_to_2D()
                 q_previous,
                 points3D);
 
+    // PCL VIZ
+    points_array.push_back(points3D);
+
+    std::cout <<"\ndebut loop\n";
 
     for(size_t image_index = 1; image_index < images.size(); image_index++)
     {          
+        std::cout << " BOUCLE "<< image_index << std::endl;
         // 2.2 - extract and matche feature between Ik-1 and Ik
+        std::cout << " etape 2.2 " << std::endl;
         extract_and_matche_features((int) image_index, 
                                     current_descriptors, 
                                     previous_descriptors, 
@@ -353,32 +378,90 @@ void VisualOdometry_monocular::main_3D_to_2D()
         
 
 
-        triangulate(P_current,
-                    P_previous,
-                    q_current,
-                    q_previous,
-                    points3D);
+        
+        // =====================================
+        // ================ VIZ ================
+        // =====================================
+        // if(0)
+        // {
+            // std::vector<cv::Point3f> points;
+            // points = points3D;
 
-        std::cout << "FIN BOUBLE "<< image_index << std::endl;
+            // VESION UN SUEL PONT CLOUDS
+            // points_viz.insert(points_viz.end(), points3D.begin(), points3D.end());
+            // std::cout<< "NOMBRE DE POINTS\n" <<points_viz.size();
+            // Créer un nuage de points
+            // cv::viz::WCloud cloud(points_viz, cv::viz::Color::red());
+
+
+            // cv::viz::Viz3d window("Viz Demo");
+
+            // // Ajouter le nuage de points à la fenêtre
+            // window.showWidget("Cloud", cloud);
+
+            // // Boucle de rendu
+            // window.spin();
+        // }
+
+        points_array.push_back(points3D);
+        if(image_index == 3)
+        {
+            std::cout << " pcl " << std::endl;
+            // créé/ajoute un nuage de points
+            cv::viz::WCloud cloud1(points_array[0], cv::viz::Color::red());
+            cv::viz::WCloud cloud2(points_array[1], cv::viz::Color::blue());
+            cv::viz::WCloud cloud3(points_array[2], cv::viz::Color::green());
+            cv::viz::WCloud cloud4(points_array[3]);
+
+            cv::viz::Viz3d window("2 pcl");
+
+            window.showWidget("Cloud1", cloud1);
+            window.showWidget("Cloud2", cloud2);
+            window.showWidget("Cloud3", cloud3);
+            window.showWidget("Cloud4", cloud4);
+            
+            window.spin();
+        }
+
+        // while (!window.wasStopped()) {
+        //     window.spinOnce(1, true);
+        // }
+
+        // ===============================================
+        // ================= no more viz =================
+        // ===============================================
 
         // 2.3 PNP ransac
-    
+        // (?) attention fonction qui renvoie une varaible (?)
+        std::cout << " etape 2.3 " << std::endl;
         cv::Mat Ti = find_Rti(q_current,
                                 points3D,
                                 Rti);
 
+        std::cout << " print Rti \n"<< Rti << std::endl;
+        std::cout << "  no more " << std::endl;
         C0 = C0 * Ti.inv();
 
         P_previous = P_current.clone(); 
         
         std::cout << "int mat" << std::endl;
         P_current = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t] // il semblemrait que ça soit juste, cependant, je pense que 
-        
-        
-        write_pose("poses/mono_3D_2D_my_poses_seq2.txt", C0);// ici ce n'est pas bon, c'est pas p current non plus je pense 
+
+        // 2.4 triangulate
+        std::cout << " etape 2.4 " << std::endl;
+        triangulate(P_current,
+                    P_previous,
+                    q_current,
+                    q_previous,
+                    points3D);
+
+        write_pose("poses/3D_2D.txt", C0);
         std::cout << image_index <<std::endl;
+
     }
     std::cout << "Over" <<std::endl;
+
+    
 
 }
 
@@ -516,3 +599,5 @@ int main()
 - L'axe y est vers le haut
 - il faut comprendre la partie triangulation MAIS on sait que recover pose fait le taff à notre place
 */
+// il doit y avoir un soucis avec les matrices de projections
+// j'ai l'impression que les poitns 3D qui suivent sont plus petits ET inversé par rapport au 1er 
