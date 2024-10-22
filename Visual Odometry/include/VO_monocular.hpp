@@ -17,30 +17,30 @@ public:
     VisualOdometry_monocular(std::string new_data_directory);
     // ~VisualOdometry_monocular();
 
-    int motion_estimation(std::vector<cv::Point2f>& q_current,
-                          std::vector<cv::Point2f>& q_previous,
+    int motion_estimation(std::vector<cv::Point2f>& matching_kpi_0,
+                          std::vector<cv::Point2f>& matching_kpi_1,
                           cv::Mat& Ri, 
                           cv::Mat& ti);
 
-    int filter_good_matches(const std::vector<cv::DMatch> matches, 
+    int filter_good_matches(const std::vector<std::vector<cv::DMatch>> matches, 
                             const float ratio_thresh, 
                             std::vector<cv::DMatch>& good_matches);
                               
     int extract_and_matche_features(int image_index, 
-                                    cv::Mat& current_descriptors, 
-                                    cv::Mat& previous_descriptors, 
-                                    std::vector<cv::KeyPoint>& current_keypoints,  
-                                    std::vector<cv::KeyPoint>& previous_keypoints,
-                                    std::vector<cv::Point2f>& q_current,
-                                    std::vector<cv::Point2f>& q_previous);
+                                    cv::Mat& desci_0, 
+                                    cv::Mat& desci_1, 
+                                    std::vector<cv::KeyPoint>& kpi_0,  
+                                    std::vector<cv::KeyPoint>& kpi_1,
+                                    std::vector<cv::Point2f>& matching_kpi_0,
+                                    std::vector<cv::Point2f>& matching_kpi_1);
 
-    int triangulate(cv::Mat& P_current,
-                    cv::Mat& P_previous,
-                    std::vector<cv::Point2f>& q_current,
-                    std::vector<cv::Point2f>& q_previous,
+    int triangulate(cv::Mat& PMi_0,
+                    cv::Mat& PMi_1,
+                    std::vector<cv::Point2f>& matching_kpi_0,
+                    std::vector<cv::Point2f>& matching_kpi_1,
                     std::vector<cv::Point3f>& points3D);
 
-    cv::Mat find_Rti(std::vector<cv::Point2f>& q_current,
+    cv::Mat find_Rti(std::vector<cv::Point2f>& matching_kpi_0,
                  std::vector<cv::Point3f>& points3D,
                  cv::Mat& Rti);
 
@@ -69,14 +69,14 @@ private:
     cv::Mat intrinsic_matrix = cv::Mat::zeros(3, 3, CV_32F);
     cv::Mat projection_matrix = cv::Mat::zeros(4, 4, CV_32F);
 
-    // cv::Mat current_descriptors;
-    // cv::Mat previous_descriptors;
+    // cv::Mat desci_0;
+    // cv::Mat desci_1;
 
-    // std::vector<cv::KeyPoint> current_keypoints; 
-    // std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
+    // std::vector<cv::KeyPoint> kpi_0; 
+    // std::vector<cv::KeyPoint> kpi_1; //    also create a pointer to change ref reasily ? 
 
-    // std::vector<cv::Point2f> q_current;
-    // std::vector<cv::Point2f> q_previous;
+    // std::vector<cv::Point2f> matching_kpi_0;
+    // std::vector<cv::Point2f> matching_kpi_1;
 
     
     cv::Ptr<cv::Feature2D> orb = cv::ORB::create(3000); // we can change the number 

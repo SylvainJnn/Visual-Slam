@@ -24,23 +24,23 @@ VisualOdometry_monocular::VisualOdometry_monocular(std::string new_data_director
 
 /**
  * @brief compute the displacement between the current frame (fi) and the previous frame (fi-1)
- * @param q_current contains the keypoints of the frame fi
- * @param q_previous contains the keypoints of the frame fi-1
+ * @param matching_kpi_0 contains the keypoints of the frame fi
+ * @param matching_kpi_1 contains the keypoints of the frame fi-1
  * @return Ti Matrice that contains homogenous coordinates. It represents the displacement between Ti-1 and Ti
  */
-int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& q_current,
-                                                std::vector<cv::Point2f>& q_previous,
+int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& matching_kpi_0,
+                                                std::vector<cv::Point2f>& matching_kpi_1,
                                                 cv::Mat& Ri, 
                                                 cv::Mat& ti)
 {
     // 3 - Compute essential matrix for image pair Ik-1 and Ik 
     cv::Mat essential_matrix, mask_essential_matrix; 
-    essential_matrix = cv::findEssentialMat(q_previous, q_current, intrinsic_matrix, cv::RANSAC);
+    essential_matrix = cv::findEssentialMat(matching_kpi_1, matching_kpi_0, intrinsic_matrix, cv::RANSAC);
 
     // 4 - Decompose essential matriintrinsic_matrixce to Ri and ti
     // Attention, several Rotation matrice are possible
     
-    cv::recoverPose(essential_matrix, q_previous, q_current, intrinsic_matrix, Ri, ti);
+    cv::recoverPose(essential_matrix, matching_kpi_1, matching_kpi_0, intrinsic_matrix, Ri, ti);
 
     return(0);
 }
@@ -51,15 +51,15 @@ int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& q_curr
  * @param ratio_thresh : 0=<value <=1; in order to sleect the best from a certain level(make it better)
  * @return good_matches : vector containing all the good matches 
  */
-int VisualOdometry_monocular::filter_good_matches(const std::vector<cv::DMatch> matches, const float ratio_thresh, std::vector<cv::DMatch>& good_matches)
+int VisualOdometry_monocular::filter_good_matches(const std::vector<std::vector<cv::DMatch>> matches, const float ratio_thresh, std::vector<cv::DMatch>& good_matches)
 {
     for (size_t i = 0; i < matches.size(); i++) 
     {
         if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue // ATTENTION on devrait aussi vérifier si le tuple est bien de longeur 2 et pas autre chsoe
         {
-            std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
+            std::cout << "Error : cell " << i    << " is empty." << std::endl; // before we checked with images index
         }
-        else if(matches[i].size() =! 2 )
+        else if(matches[i].size() != 2 )
         {
             std::cout << "Error : cell " << i << " images of size " << matches[i].size()  << " instead of 2" << std::endl;
         
@@ -79,70 +79,70 @@ int VisualOdometry_monocular::filter_good_matches(const std::vector<cv::DMatch> 
  *  C - filter only the good match
  *  D - put in arrays q_i: coordinates vector of the matching keypoints on image i
  * @param image_index : index of the current image
- * @return q_current : vector of points representing the coordinates of the keypoints in the current image (image ith)
- * @return q_previous : vector of points representing the coordinates of the matching keypoints in the previous image (image (i-1)th)
+ * @return matching_kpi_0 : vector of points representing the coordinates of the keypoints in the current image (image ith)
+ * @return matching_kpi_1 : vector of points representing the coordinates of the matching keypoints in the previous image (image (i-1)th)
  */
 int VisualOdometry_monocular::extract_and_matche_features(int image_index, 
-                                                          cv::Mat& current_descriptors, 
-                                                          cv::Mat& previous_descriptors, 
-                                                          std::vector<cv::KeyPoint>& current_keypoints,  
-                                                          std::vector<cv::KeyPoint>& previous_keypoints,
-                                                          std::vector<cv::Point2f>& q_current,
-                                                          std::vector<cv::Point2f>& q_previous) 
+                                                          cv::Mat& desci_0, 
+                                                          cv::Mat& desci_1, 
+                                                          std::vector<cv::KeyPoint>& kpi_0,  
+                                                          std::vector<cv::KeyPoint>& kpi_1,
+                                                          std::vector<cv::Point2f>& matching_kpi_0,
+                                                          std::vector<cv::Point2f>& matching_kpi_1) 
 {
     // A - compute keypoints and descriptors
-    previous_descriptors = current_descriptors.clone();
-    previous_keypoints = current_keypoints;
-    orb->detectAndCompute(images[image_index], cv::noArray(), current_keypoints, current_descriptors); // normaleltn c'est update 
+    desci_1 = desci_0.clone();
+    kpi_1 = kpi_0;
+    orb->detectAndCompute(images[image_index], cv::noArray(), kpi_0, desci_0); // normaleltn c'est update 
 
     // B - match features
     std::vector<std::vector<cv::DMatch>> matches;
-    my_flann->knnMatch(previous_descriptors, current_descriptors, matches, 2);
+    my_flann->knnMatch(desci_1, desci_0, matches, 2);
     // printMatches(matches);
 
 
     // C - filter only the good match
 
     // V1
-    // const float ratio_thresh = 0.5f; // TODO c'est quoi ce ration
-    // std::vector<cv::DMatch> good_matches;
-    // for (size_t i = 0; i < matches.size(); i++) 
-    // {
-    //     if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue // ATTENTION on devrait aussi vérifier si le tuple est bien de longeur 2 et pas autre chsoe
-    //     {
-    //         std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
-    //     }
-    //     else if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
-    //     {
-    //         good_matches.push_back(matches[i][0]);
-    //     }
-    // }
+    const float ratio_thresh = 0.5f; // TODO c'est quoi ce ration
+    std::vector<cv::DMatch> good_matches;
+    for (size_t i = 0; i < matches.size(); i++) 
+    {
+        if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue // ATTENTION on devrait aussi vérifier si le tuple est bien de longeur 2 et pas autre chsoe
+        {
+            std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
+        }
+        else if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
+        {
+            good_matches.push_back(matches[i][0]);
+        }
+    }
 
     // V2
-    std::vector<cv::DMatch> good_matches;
-    filter_good_matches(matches,
-                        0.5,
-                        good_matches);
+    // std::vector<cv::DMatch> good_matches;
+    // filter_good_matches(matches,
+    //                     0.5,
+    //                     good_matches);
 
 
-    // // sort good_matches in descending order based on distance
-    // std::sort(good_matches.begin(), good_matches.end(), [](const cv::DMatch& a, const cv::DMatch& b) 
-    // {
-    //     return a.distance > b.distance; // Sort in descending order
-    // });
+    // sort good_matches in descending order based on distance
+    std::sort(good_matches.begin(), good_matches.end(), [](const cv::DMatch& a, const cv::DMatch& b) 
+    {
+        return a.distance > b.distance; // Sort in descending order
+    });
         
     // Filter the best match
-    // std::vector<cv::Point2f> q_current;
-    // std::vector<cv::Point2f> q_previous;
+    // std::vector<cv::Point2f> matching_kpi_0;
+    // std::vector<cv::Point2f> matching_kpi_1;
 
     // D - put in arrays q_i: coordinates vector of the matching keypoints on image i
     // Reset
-    q_current.clear();
-    q_previous.clear();
+    matching_kpi_0.clear();
+    matching_kpi_1.clear();
     for (const auto& good : good_matches) 
     {
-        q_previous.push_back(previous_keypoints[good.queryIdx].pt);
-        q_current.push_back(current_keypoints[good.trainIdx].pt);
+        matching_kpi_1.push_back(kpi_1[good.queryIdx].pt);
+        matching_kpi_0.push_back(kpi_0[good.trainIdx].pt);
     }
 
     if(true)
@@ -151,7 +151,7 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
         cv::Mat img_matches;
 
         // Option pour ne pas dessiner les points individuels
-        cv::drawMatches(images[image_index - 1], previous_keypoints, images[image_index], current_keypoints, good_matches, img_matches, 
+        cv::drawMatches(images[image_index - 1], kpi_1, images[image_index], kpi_0, good_matches, img_matches, 
                         cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 
         // Redimensionner l'image résultante si elle est trop grande pour l'écran
@@ -166,20 +166,20 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
     return(0);
 }
 
-int VisualOdometry_monocular::triangulate(cv::Mat& P_current,
-                                          cv::Mat& P_previous,
-                                          std::vector<cv::Point2f>& q_current,
-                                          std::vector<cv::Point2f>& q_previous,
+int VisualOdometry_monocular::triangulate(cv::Mat& PMi_0,
+                                          cv::Mat& PMi_1,
+                                          std::vector<cv::Point2f>& matching_kpi_0,
+                                          std::vector<cv::Point2f>& matching_kpi_1,
                                           std::vector<cv::Point3f>& points3D)
 {
     // Triangulate points
     //points4D.release(); // output of the function  // FIND better name
     cv::Mat points4D;
 
-    cv::triangulatePoints(P_previous, 
-                          P_current, 
-                          q_previous, 
-                          q_current,
+    cv::triangulatePoints(PMi_1, 
+                          PMi_0, 
+                          matching_kpi_1, 
+                          matching_kpi_0,
                           points4D);
 
     // set the 4D points to 3D
@@ -205,7 +205,7 @@ int VisualOdometry_monocular::triangulate(cv::Mat& P_current,
     return(0);
 }
 
-cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
+cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& matching_kpi_0,
                                             std::vector<cv::Point3f>& points3D,
                                             cv::Mat& Rti)
 {
@@ -221,7 +221,7 @@ cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
 
     cv::Mat Rvec, tvec;
     // bool success = cv::solvePnPRansac(points3D, 
-    //                                   q_current, 
+    //                                   matching_kpi_0, 
     //                                   intrinsic_matrix, 
     //                                   distCoeffs, 
     //                                   Rvec, 
@@ -232,7 +232,7 @@ cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& q_current,
     //                                   confidence, 
     //                                   inliers);
     std::cout << "debut calcul PnP " << std::endl;
-    cv::solvePnP(points3D, q_current, intrinsic_matrix, cv::Mat(), Rvec, tvec);
+    cv::solvePnP(points3D, matching_kpi_0, intrinsic_matrix, cv::Mat(), Rvec, tvec);
     std::cout << "fin calcul PnP,\n\n" << std::endl;
     
     cv::Mat Ri;
@@ -279,39 +279,39 @@ void VisualOdometry_monocular::main_2D_to_2D()
     cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
     Ci = get_first_pose(data_directory);
 
-    cv::Mat current_descriptors;
-    cv::Mat previous_descriptors;
+    cv::Mat desci_0;
+    cv::Mat desci_1;
 
-    std::vector<cv::KeyPoint> current_keypoints; 
-    std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
+    std::vector<cv::KeyPoint> kpi_0; 
+    std::vector<cv::KeyPoint> kpi_1; //    also create a pointer to change ref reasily ? 
 
-    std::vector<cv::Point2f> q_current;
-    std::vector<cv::Point2f> q_previous;
+    std::vector<cv::Point2f> matching_kpi_0;
+    std::vector<cv::Point2f> matching_kpi_1;
 
     cv::Mat Ri, ti; 
 
     // write first the first pose
-    write_pose("poses/1.txt", Ci);
+    write_pose("poses/test.txt", Ci);
 
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
-    orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors);
+    orb->detectAndCompute(images[0], cv::noArray(), kpi_0, desci_0);
 
     for(size_t image_index = 1; image_index < images.size(); image_index++)
     {          
         // 2 - extract and matche feature between Ik-1 and Ik || Todo, only extract one image at the same time (put old image OR feature in a pointer variable )
         extract_and_matche_features((int) image_index, 
-                                    current_descriptors, 
-                                    previous_descriptors, 
-                                    current_keypoints,  
-                                    previous_keypoints,
-                                    q_current,
-                                    q_previous);
+                                    desci_0, 
+                                    desci_1, 
+                                    kpi_0,  
+                                    kpi_1,
+                                    matching_kpi_0,
+                                    matching_kpi_1);
         
         // 3 - Compute essential matrix for image pair Ik-1 and Ik 
         // 4 - Decompose essential matrix into Rk and tk, and from Tk
         // 5 - Compute relatice scale and resacle tk accordingly // fait dans Recoverpose
-        motion_estimation(q_current, 
-                          q_previous,
+        motion_estimation(matching_kpi_0, 
+                          matching_kpi_1,
                           Ri, 
                           ti);
 
@@ -322,7 +322,7 @@ void VisualOdometry_monocular::main_2D_to_2D()
 
         // std::cout << "Ti  :\n" << Ti <<std::endl;
         // std::cout << " Ci :\n" << Ci <<std::endl;
-        write_pose("poses/1.txt", Ci);
+        write_pose("poses/test.txt", Ci);
         std::cout << image_index <<std::endl;
     }
     std::cout << "Over" <<std::endl;
@@ -339,14 +339,14 @@ void VisualOdometry_monocular::main_3D_to_2D()
     cv::Mat C0 = cv::Mat::eye(4, 4, CV_32F); // current pose
     C0 = get_first_pose(data_directory);
 
-    cv::Mat current_descriptors;
-    cv::Mat previous_descriptors;
+    cv::Mat desci_0;
+    cv::Mat desci_1;
 
-    std::vector<cv::KeyPoint> current_keypoints; 
-    std::vector<cv::KeyPoint> previous_keypoints; //    also create a pointer to change ref reasily ? 
+    std::vector<cv::KeyPoint> kpi_0; 
+    std::vector<cv::KeyPoint> kpi_1; //    also create a pointer to change ref reasily ? 
 
-    std::vector<cv::Point2f> q_current;
-    std::vector<cv::Point2f> q_previous;
+    std::vector<cv::Point2f> matching_kpi_0;
+    std::vector<cv::Point2f> matching_kpi_1;
 
     cv::Mat Ri, ti, Rti;
 
@@ -357,39 +357,39 @@ void VisualOdometry_monocular::main_3D_to_2D()
     write_pose("poses/3D_2D.txt", C0);
 
     // 1.2 Extract and match features
-    // get find q_previous and q_current: the 2D points in the image
-    orb->detectAndCompute(images[0], cv::noArray(), current_keypoints, current_descriptors); // extract img1
+    // get find matching_kpi_1 and matching_kpi_0: the 2D points in the image
+    orb->detectAndCompute(images[0], cv::noArray(), kpi_0, desci_0); // extract img1
     extract_and_matche_features(1,  // extract img2 and matche f1 & f2
-                                current_descriptors, 
-                                previous_descriptors, 
-                                current_keypoints,  
-                                previous_keypoints,
-                                q_current,
-                                q_previous);
+                                desci_0, 
+                                desci_1, 
+                                kpi_0,  
+                                kpi_1,
+                                matching_kpi_0,
+                                matching_kpi_1);
                                                             
     // 1.3  
     // projection Matrice for each iamges
-    cv::Mat P_previous, P_current; 
+    cv::Mat PMi_1, PMi_0; 
     // turn the first 3 lines and 4th column of Ci : 4x4 -> 3x4
-    P_previous = intrinsic_matrix * C0(cv::Range(0, 3), cv::Range::all()); // Matrice de projection = K * [R|t], ici R0 et t0
+    PMi_1 = intrinsic_matrix * C0(cv::Range(0, 3), cv::Range::all()); // Matrice de projection = K * [R|t], ici R0 et t0
 
     // CHANGER UNE FOIS QUE CA MARCHEN MOTION ESTIMATION DOIT PRENDRE Ri ti EN sortit / je sais plus pourquoi. pour la première étape il faut faire une motion estimation 2D 2D 
-    motion_estimation(q_current, 
-                      q_previous,
+    motion_estimation(matching_kpi_0, 
+                      matching_kpi_1,
                       Ri, 
                       ti);
 
     cv::hconcat(Ri, ti, Rti); 
     Rti.convertTo(Rti, CV_32F); // Convert to from double to float
 
-    P_current = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t], ici R1 et t1
+    PMi_0 = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t], ici R1 et t1
 
     // Triangulate points
     std::vector<cv::Point3f> points3D; // output of the function  // FIND better name
-    triangulate(P_current,
-                P_previous,
-                q_current,
-                q_previous,
+    triangulate(PMi_0,
+                PMi_1,
+                matching_kpi_0,
+                matching_kpi_1,
                 points3D);
 
     // PCL VIZ
@@ -403,12 +403,12 @@ void VisualOdometry_monocular::main_3D_to_2D()
         // 2.2 - extract and matche feature between Ik-1 and Ik
         std::cout << " etape 2.2 " << std::endl;
         extract_and_matche_features((int) image_index, 
-                                    current_descriptors, 
-                                    previous_descriptors, 
-                                    current_keypoints,  
-                                    previous_keypoints,
-                                    q_current,
-                                    q_previous);
+                                    desci_0, 
+                                    desci_1, 
+                                    kpi_0,  
+                                    kpi_1,
+                                    matching_kpi_0,
+                                    matching_kpi_1);
 
         //NEW
         // on va devoir faire le matching entre les good descriptors entre i et i-1
@@ -482,7 +482,7 @@ void VisualOdometry_monocular::main_3D_to_2D()
         // 2.3 PNP ransac
         // (?) attention fonction qui renvoie une varaible (?)
         std::cout << " etape 2.3 " << std::endl;
-        cv::Mat Ti = find_Rti(q_current,
+        cv::Mat Ti = find_Rti(matching_kpi_0,
                                 points3D,
                                 Rti);
 
@@ -490,17 +490,17 @@ void VisualOdometry_monocular::main_3D_to_2D()
         std::cout << "  no more " << std::endl;
         C0 = C0 * Ti.inv();
 
-        P_previous = P_current.clone(); 
+        PMi_1 = PMi_0.clone(); 
         
         std::cout << "int mat" << std::endl;
-        P_current = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t] // il semblemrait que ça soit juste, cependant, je pense que 
+        PMi_0 = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t] // il semblemrait que ça soit juste, cependant, je pense que 
 
         // 2.4 triangulate
         std::cout << " etape 2.4 " << std::endl;
-        triangulate(P_current,
-                    P_previous,
-                    q_current,
-                    q_previous,
+        triangulate(PMi_0,
+                    PMi_1,
+                    matching_kpi_0,
+                    matching_kpi_1,
                     points3D);
 
         write_pose("poses/3D_2D.txt", C0);
@@ -633,7 +633,7 @@ void VisualOdometry_monocular::printMatchesArray(const std::vector<std::vector<c
 int main()
 {
     VisualOdometry_monocular VO = VisualOdometry_monocular("example/KITTI_sequence_2");
-    VO.main_3D_to_2D();
+    VO.main_2D_to_2D();
     return(0);
 }
 
@@ -655,8 +655,11 @@ int main()
 
 /**
  * we call 
+ * images_index = i
  * kpi_x: all detected keypoints on frame i-x
- * qi_x: all matching 2d/keypoints on frame i-x
+ * matching_kpi_x: all matching 2d/keypoints on frame i-x
+ * desci_x: descriptor of kp_x
  * points3D
+ * PMi_x: projection matrix on frame i-x
  * 
  */
