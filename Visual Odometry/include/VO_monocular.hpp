@@ -21,6 +21,10 @@ public:
                           std::vector<cv::Point2f>& q_previous,
                           cv::Mat& Ri, 
                           cv::Mat& ti);
+
+    int filter_good_matches(const std::vector<cv::DMatch> matches, 
+                            const float ratio_thresh, 
+                            std::vector<cv::DMatch>& good_matches);
                               
     int extract_and_matche_features(int image_index, 
                                     cv::Mat& current_descriptors, 

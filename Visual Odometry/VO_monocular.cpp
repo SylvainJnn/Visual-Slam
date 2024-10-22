@@ -40,9 +40,35 @@ int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& q_curr
     // 4 - Decompose essential matriintrinsic_matrixce to Ri and ti
     // Attention, several Rotation matrice are possible
     
-    
     cv::recoverPose(essential_matrix, q_previous, q_current, intrinsic_matrix, Ri, ti);
 
+    return(0);
+}
+
+/**
+ * @brief filter only the good match using "..."'s threshold  
+ * @param matches : vector containinng all the matches
+ * @param ratio_thresh : 0=<value <=1; in order to sleect the best from a certain level(make it better)
+ * @return good_matches : vector containing all the good matches 
+ */
+int VisualOdometry_monocular::filter_good_matches(const std::vector<cv::DMatch> matches, const float ratio_thresh, std::vector<cv::DMatch>& good_matches)
+{
+    for (size_t i = 0; i < matches.size(); i++) 
+    {
+        if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue // ATTENTION on devrait aussi vérifier si le tuple est bien de longeur 2 et pas autre chsoe
+        {
+            std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
+        }
+        else if(matches[i].size() =! 2 )
+        {
+            std::cout << "Error : cell " << i << " images of size " << matches[i].size()  << " instead of 2" << std::endl;
+        
+        }
+        else if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
+        {
+            good_matches.push_back(matches[i][0]);
+        }
+    }
     return(0);
 }
 
@@ -76,19 +102,27 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
 
 
     // C - filter only the good match
-    const float ratio_thresh = 0.5f; // TODO c'est quoi ce ration
+
+    // V1
+    // const float ratio_thresh = 0.5f; // TODO c'est quoi ce ration
+    // std::vector<cv::DMatch> good_matches;
+    // for (size_t i = 0; i < matches.size(); i++) 
+    // {
+    //     if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue // ATTENTION on devrait aussi vérifier si le tuple est bien de longeur 2 et pas autre chsoe
+    //     {
+    //         std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
+    //     }
+    //     else if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
+    //     {
+    //         good_matches.push_back(matches[i][0]);
+    //     }
+    // }
+
+    // V2
     std::vector<cv::DMatch> good_matches;
-    for (size_t i = 0; i < matches.size(); i++) 
-    {
-        if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue
-        {
-            std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
-        }
-        else if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
-        {
-            good_matches.push_back(matches[i][0]);
-        }
-    }
+    filter_good_matches(matches,
+                        0.5,
+                        good_matches);
 
 
     // // sort good_matches in descending order based on distance
@@ -375,7 +409,21 @@ void VisualOdometry_monocular::main_3D_to_2D()
                                     previous_keypoints,
                                     q_current,
                                     q_previous);
+
+        //NEW
+        // on va devoir faire le matching entre les good descriptors entre i et i-1
+        // ensuite, on sauvagardes tout les kp et des précédents
+        // enfin on enlève de la précédente triangulation tout les point 3D des points 2D qui ont pas matché 
+        // (-> je me demande si on peut pas faire la triangulation avec seulement les points qui on marché ? -> je pense que y'a moyen mais ça a l'air d'êtr eun casse tête en plus alors que en les enlevant simplement c'est plus simple je pense)
         
+        // @TODO
+        // refaire TOUTES la nomenclature pour que ça soit lisible avec ce changement 
+        // teste que mono marche correctement avec les changements
+
+        // OLD
+        // new step -> tracking 3D points
+        // kepp all the previous q and descriptors that are still in the current image
+        // rajoute un moyen de suivre les points pendant au moins 3 images (entre les points triangulé et l'étape d'après)
 
 
         
@@ -601,3 +649,14 @@ int main()
 */
 // il doit y avoir un soucis avec les matrices de projections
 // j'ai l'impression que les poitns 3D qui suivent sont plus petits ET inversé par rapport au 1er 
+
+
+// faire comme dans trackgpt -> actualiser les points 3D qu'on a 
+
+/**
+ * we call 
+ * kpi_x: all detected keypoints on frame i-x
+ * qi_x: all matching 2d/keypoints on frame i-x
+ * points3D
+ * 
+ */
