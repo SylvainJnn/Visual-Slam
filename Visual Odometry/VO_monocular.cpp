@@ -7,13 +7,13 @@
 #include <opencv2/viz.hpp>
 #include "include/VO_monocular.hpp"
 
-using namespace std;
+// using namespace std;
 
 
 // Constructor
 VisualOdometry_monocular::VisualOdometry_monocular()
 {
-    std:cout<<"Nothing specified\n";
+    std::cout<<"Nothing specified\n";
 }
 
 VisualOdometry_monocular::VisualOdometry_monocular(std::string new_data_directory)
@@ -24,23 +24,23 @@ VisualOdometry_monocular::VisualOdometry_monocular(std::string new_data_director
 
 /**
  * @brief compute the displacement between the current frame (fi) and the previous frame (fi-1)
- * @param matching_kpi_0 contains the keypoints of the frame fi
- * @param matching_kpi_1 contains the keypoints of the frame fi-1
+ * @param matching_kpi_01 contains the keypoints of the frame fi
+ * @param matching_kpi_10 contains the keypoints of the frame fi-1
  * @return Ti Matrice that contains homogenous coordinates. It represents the displacement between Ti-1 and Ti
  */
-int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& matching_kpi_0,
-                                                std::vector<cv::Point2f>& matching_kpi_1,
+int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& matching_kpi_01,
+                                                std::vector<cv::Point2f>& matching_kpi_10,
                                                 cv::Mat& Ri, 
                                                 cv::Mat& ti)
 {
     // 3 - Compute essential matrix for image pair Ik-1 and Ik 
     cv::Mat essential_matrix, mask_essential_matrix; 
-    essential_matrix = cv::findEssentialMat(matching_kpi_1, matching_kpi_0, intrinsic_matrix, cv::RANSAC);
+    essential_matrix = cv::findEssentialMat(matching_kpi_10, matching_kpi_01, intrinsic_matrix, cv::RANSAC);
 
     // 4 - Decompose essential matriintrinsic_matrixce to Ri and ti
     // Attention, several Rotation matrice are possible
     
-    cv::recoverPose(essential_matrix, matching_kpi_1, matching_kpi_0, intrinsic_matrix, Ri, ti);
+    cv::recoverPose(essential_matrix, matching_kpi_10, matching_kpi_01, intrinsic_matrix, Ri, ti);
 
     return(0);
 }
@@ -51,7 +51,9 @@ int VisualOdometry_monocular::motion_estimation(std::vector<cv::Point2f>& matchi
  * @param ratio_thresh : 0=<value <=1; in order to sleect the best from a certain level(make it better)
  * @return good_matches : vector containing all the good matches 
  */
-int VisualOdometry_monocular::filter_good_matches(const std::vector<std::vector<cv::DMatch>> matches, const float ratio_thresh, std::vector<cv::DMatch>& good_matches)
+int VisualOdometry_monocular::filter_good_matches(const std::vector<std::vector<cv::DMatch>> matches, 
+                                                  const float ratio_thresh, 
+                                                  std::vector<cv::DMatch>& good_matches)
 {
     for (size_t i = 0; i < matches.size(); i++) 
     {
@@ -79,16 +81,17 @@ int VisualOdometry_monocular::filter_good_matches(const std::vector<std::vector<
  *  C - filter only the good match
  *  D - put in arrays q_i: coordinates vector of the matching keypoints on image i
  * @param image_index : index of the current image
- * @return matching_kpi_0 : vector of points representing the coordinates of the keypoints in the current image (image ith)
- * @return matching_kpi_1 : vector of points representing the coordinates of the matching keypoints in the previous image (image (i-1)th)
+ * @return matching_kpi_01 : vector of points representing the coordinates of the keypoints in the current image (image ith)
+ * @return matching_kpi_10 : vector of points representing the coordinates of the matching keypoints in the previous image (image (i-1)th)
  */
 int VisualOdometry_monocular::extract_and_matche_features(int image_index, 
                                                           cv::Mat& desci_0, 
                                                           cv::Mat& desci_1, 
                                                           std::vector<cv::KeyPoint>& kpi_0,  
                                                           std::vector<cv::KeyPoint>& kpi_1,
-                                                          std::vector<cv::Point2f>& matching_kpi_0,
-                                                          std::vector<cv::Point2f>& matching_kpi_1) 
+                                                          std::vector<cv::Point2f>& matching_kpi_01,
+                                                          std::vector<cv::Point2f>& matching_kpi_10,
+                                                          cv::Mat& matching_desci_01) 
 {
     // A - compute keypoints and descriptors
     desci_1 = desci_0.clone();
@@ -104,48 +107,50 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
     // C - filter only the good match
 
     // V1
-    const float ratio_thresh = 0.5f; // TODO c'est quoi ce ration
-    std::vector<cv::DMatch> good_matches;
-    for (size_t i = 0; i < matches.size(); i++) 
-    {
-        if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue // ATTENTION on devrait aussi vérifier si le tuple est bien de longeur 2 et pas autre chsoe
-        {
-            std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
-        }
-        else if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
-        {
-            good_matches.push_back(matches[i][0]);
-        }
-    }
+    // const float ratio_thresh = 0.5f; // TODO c'est quoi ce ration
+    // std::vector<cv::DMatch> good_matches;
+    // for (size_t i = 0; i < matches.size(); i++) 
+    // {
+    //     if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue // ATTENTION on devrait aussi vérifier si le tuple est bien de longeur 2 et pas autre chsoe
+    //     {
+    //         std::cout << "Error : cell " << i << " of matches in image " << image_index << " is empty." << std::endl;
+    //     }
+    //     else if (matches[i][0].distance < (ratio_thresh * matches[i][1].distance))
+    //     {
+    //         good_matches.push_back(matches[i][0]);
+    //     }
+    // }
 
     // V2
-    // std::vector<cv::DMatch> good_matches;
-    // filter_good_matches(matches,
-    //                     0.5,
-    //                     good_matches);
+    std::vector<cv::DMatch> good_matches;
+    filter_good_matches(matches,
+                        0.5,
+                        good_matches);
 
 
     // sort good_matches in descending order based on distance
-    std::sort(good_matches.begin(), good_matches.end(), [](const cv::DMatch& a, const cv::DMatch& b) 
-    {
-        return a.distance > b.distance; // Sort in descending order
-    });
+    // std::sort(good_matches.begin(), good_matches.end(), [](const cv::DMatch& a, const cv::DMatch& b) 
+    // {
+    //     return a.distance > b.distance; // Sort in descending order
+    // });
         
     // Filter the best match
-    // std::vector<cv::Point2f> matching_kpi_0;
-    // std::vector<cv::Point2f> matching_kpi_1;
+    // std::vector<cv::Point2f> matching_kpi_01;
+    // std::vector<cv::Point2f> matching_kpi_10;
 
     // D - put in arrays q_i: coordinates vector of the matching keypoints on image i
     // Reset
-    matching_kpi_0.clear();
-    matching_kpi_1.clear();
+    matching_kpi_10.clear();
+    matching_kpi_01.clear();
+    matching_desci_01.release();
     for (const auto& good : good_matches) 
     {
-        matching_kpi_1.push_back(kpi_1[good.queryIdx].pt);
-        matching_kpi_0.push_back(kpi_0[good.trainIdx].pt);
+        matching_kpi_10.push_back(kpi_1[good.queryIdx].pt);
+        matching_kpi_01.push_back(kpi_0[good.trainIdx].pt);
+        matching_desci_01.push_back(desci_0.row(good.trainIdx));
     }
 
-    if(true)
+    if(false)
     {
         // E - Visualiser les correspondances entre les images avec une taille plus petite et en ne montrant que les correspondances
         cv::Mat img_matches;
@@ -168,8 +173,8 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index,
 
 int VisualOdometry_monocular::triangulate(cv::Mat& PMi_0,
                                           cv::Mat& PMi_1,
-                                          std::vector<cv::Point2f>& matching_kpi_0,
-                                          std::vector<cv::Point2f>& matching_kpi_1,
+                                          std::vector<cv::Point2f>& matching_kpi_01,
+                                          std::vector<cv::Point2f>& matching_kpi_10,
                                           std::vector<cv::Point3f>& points3D)
 {
     // Triangulate points
@@ -178,8 +183,8 @@ int VisualOdometry_monocular::triangulate(cv::Mat& PMi_0,
 
     cv::triangulatePoints(PMi_1, 
                           PMi_0, 
-                          matching_kpi_1, 
-                          matching_kpi_0,
+                          matching_kpi_10, 
+                          matching_kpi_01,
                           points4D);
 
     // set the 4D points to 3D
@@ -202,11 +207,25 @@ int VisualOdometry_monocular::triangulate(cv::Mat& PMi_0,
         points3D.emplace_back(Xn.at<float>(i), Yn.at<float>(i), Zn.at<float>(i)); // AUTRE MANIERE CHEC FAST
     }
 
+    std::cout << "print points" << std::endl;
+    // ATTENTION JE SAIS PAS SI CETTE PARTIE ET OCRRECT
+
+    std::cout << points4D.col(0) << std::endl;
+    std::cout << points3D[0] << std::endl;
+
+    std::cout << points4D.col(1)<< std::endl;
+    std::cout << points3D[1] << std::endl;
+    
+    // // std::cout << points4D << std::endl;
+    // // cv::waitKey(0);  // marche pas pour stop
+    // std::cout << points3D << std::endl;
+    // cv::waitKey(0); 
+    // std::cout << "find print" << std::endl;
     return(0);
 }
 
-cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& matching_kpi_0,
-                                            std::vector<cv::Point3f>& points3D,
+cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f> matching_kp,
+                                            std::vector<cv::Point3f> points3D,
                                             cv::Mat& Rti)
 {
     std::cout << "debut find rti" << std::endl;
@@ -221,7 +240,7 @@ cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& matching_kp
 
     cv::Mat Rvec, tvec;
     // bool success = cv::solvePnPRansac(points3D, 
-    //                                   matching_kpi_0, 
+    //                                   matching_kp, 
     //                                   intrinsic_matrix, 
     //                                   distCoeffs, 
     //                                   Rvec, 
@@ -232,13 +251,27 @@ cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f>& matching_kp
     //                                   confidence, 
     //                                   inliers);
     std::cout << "debut calcul PnP " << std::endl;
-    cv::solvePnP(points3D, matching_kpi_0, intrinsic_matrix, cv::Mat(), Rvec, tvec);
+    std::cout << "matching_kp "<< matching_kp.size() << std::endl;
+    std::cout << "points3D "<< points3D.size() << std::endl;
+    std::cout << "intrinsic_matrix "<< intrinsic_matrix << "\n\n";
+
+    // for (int k=0; k<points3D.size(); k++)
+    // {
+    //     std::cout << "points3D" << k << "value" << points3D[k] << std::endl;
+    // }
+
+    
+    cv::solvePnP(points3D, matching_kp, intrinsic_matrix, cv::Mat(), Rvec, tvec);
     std::cout << "fin calcul PnP,\n\n" << std::endl;
     
+
+    std::cout << "tvec" << tvec << std::endl;
+    std::cout << "Rvec" << Rvec << std::endl;
+
     cv::Mat Ri;
     Rti.release();
     cv::Rodrigues(Rvec, Ri);
-
+    
     // v A ENLEVER
     cv::Mat Ti = fuse_R_t(Ri, tvec);
 
@@ -267,7 +300,7 @@ cv::Mat VisualOdometry_monocular::fuse_R_t(cv::Mat R, cv::Mat t)
 
     return(T);
 }
-
+/*
 void VisualOdometry_monocular::main_2D_to_2D()
 {
     std::cout << "Visual odometry monocular: 2D to 2D" << std::endl;
@@ -285,8 +318,8 @@ void VisualOdometry_monocular::main_2D_to_2D()
     std::vector<cv::KeyPoint> kpi_0; 
     std::vector<cv::KeyPoint> kpi_1; //    also create a pointer to change ref reasily ? 
 
-    std::vector<cv::Point2f> matching_kpi_0;
-    std::vector<cv::Point2f> matching_kpi_1;
+    std::vector<cv::Point2f> matching_kpi_01;
+    std::vector<cv::Point2f> matching_kpi_10;
 
     cv::Mat Ri, ti; 
 
@@ -304,14 +337,14 @@ void VisualOdometry_monocular::main_2D_to_2D()
                                     desci_1, 
                                     kpi_0,  
                                     kpi_1,
-                                    matching_kpi_0,
-                                    matching_kpi_1);
+                                    matching_kpi_01,
+                                    matching_kpi_10);
         
         // 3 - Compute essential matrix for image pair Ik-1 and Ik 
         // 4 - Decompose essential matrix into Rk and tk, and from Tk
         // 5 - Compute relatice scale and resacle tk accordingly // fait dans Recoverpose
-        motion_estimation(matching_kpi_0, 
-                          matching_kpi_1,
+        motion_estimation(matching_kpi_01, 
+                          matching_kpi_10,
                           Ri, 
                           ti);
 
@@ -327,7 +360,7 @@ void VisualOdometry_monocular::main_2D_to_2D()
     }
     std::cout << "Over" <<std::endl;
 }
-
+*/
 void VisualOdometry_monocular::main_3D_to_2D()
 {
     std::cout << "Visual odometry monocular: 2D to 2D" << std::endl;
@@ -341,12 +374,22 @@ void VisualOdometry_monocular::main_3D_to_2D()
 
     cv::Mat desci_0;
     cv::Mat desci_1;
+    cv::Mat desci_2;
 
     std::vector<cv::KeyPoint> kpi_0; 
     std::vector<cv::KeyPoint> kpi_1; //    also create a pointer to change ref reasily ? 
+    std::vector<cv::KeyPoint> kpi_2;
 
-    std::vector<cv::Point2f> matching_kpi_0;
-    std::vector<cv::Point2f> matching_kpi_1;
+    cv::Mat matching_desci_01; // rename en matching_desci_01, matching_desci_12
+    cv::Mat matching_desci_12;
+    // cv::Mat matching_desci_2;
+
+    std::vector<cv::Point2f> matching_kpi_01;
+    std::vector<cv::Point2f> matching_kpi_10;
+    std::vector<cv::Point2f> matching_kpi_2;
+
+    std::vector<cv::Point2f> matching_kpi_0all; // matching points of frame i-0 of all points (of frame (i,i-1;i-2))
+    std::vector<cv::Point2f> matching_kpi_1all;
 
     cv::Mat Ri, ti, Rti;
 
@@ -357,15 +400,16 @@ void VisualOdometry_monocular::main_3D_to_2D()
     write_pose("poses/3D_2D.txt", C0);
 
     // 1.2 Extract and match features
-    // get find matching_kpi_1 and matching_kpi_0: the 2D points in the image
+    // get find matching_kpi_10 and matching_kpi_01: the 2D points in the image
     orb->detectAndCompute(images[0], cv::noArray(), kpi_0, desci_0); // extract img1
     extract_and_matche_features(1,  // extract img2 and matche f1 & f2
                                 desci_0, 
                                 desci_1, 
                                 kpi_0,  
                                 kpi_1,
-                                matching_kpi_0,
-                                matching_kpi_1);
+                                matching_kpi_01,
+                                matching_kpi_10,
+                                matching_desci_01);
                                                             
     // 1.3  
     // projection Matrice for each iamges
@@ -374,8 +418,8 @@ void VisualOdometry_monocular::main_3D_to_2D()
     PMi_1 = intrinsic_matrix * C0(cv::Range(0, 3), cv::Range::all()); // Matrice de projection = K * [R|t], ici R0 et t0
 
     // CHANGER UNE FOIS QUE CA MARCHEN MOTION ESTIMATION DOIT PRENDRE Ri ti EN sortit / je sais plus pourquoi. pour la première étape il faut faire une motion estimation 2D 2D 
-    motion_estimation(matching_kpi_0, 
-                      matching_kpi_1,
+    motion_estimation(matching_kpi_01, 
+                      matching_kpi_10,
                       Ri, 
                       ti);
 
@@ -385,30 +429,72 @@ void VisualOdometry_monocular::main_3D_to_2D()
     PMi_0 = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t], ici R1 et t1
 
     // Triangulate points
-    std::vector<cv::Point3f> points3D; // output of the function  // FIND better name
+    std::vector<cv::Point3f> points3Di_1; // output of the function  // FIND better name
     triangulate(PMi_0,
                 PMi_1,
-                matching_kpi_0,
-                matching_kpi_1,
-                points3D);
+                matching_kpi_01,
+                matching_kpi_10,
+                points3Di_1);
 
     // PCL VIZ
-    points_array.push_back(points3D);
+    points_array.push_back(points3Di_1);
 
     std::cout <<"\ndebut loop\n";
 
     for(size_t image_index = 1; image_index < images.size(); image_index++)
     {          
         std::cout << " BOUCLE "<< image_index << std::endl;
-        // 2.2 - extract and matche feature between Ik-1 and Ik
+
+        // "Swap"
+
+        // déjà fait dans "extract_and_matche_features"
+        // desci_1 = desci_0.clone();
+        // kpi_1 = kpi_0; 
+
+        // inutile pour suelement 3 frames
+        // matching_kpi_10   // matched_kp1_12 = matched_kp2_23
+        //  // matched_kp2_12 = matched_kp3_23
+        matching_desci_12 = matching_desci_01.clone();
+
+        // 2.2 - extract and matche feature between frame i-1 and i
         std::cout << " etape 2.2 " << std::endl;
         extract_and_matche_features((int) image_index, 
                                     desci_0, 
                                     desci_1, 
                                     kpi_0,  
                                     kpi_1,
-                                    matching_kpi_0,
-                                    matching_kpi_1);
+                                    matching_kpi_01,
+                                    matching_kpi_10,
+                                    matching_desci_01);
+
+        std::cout << " etape 2.2 - start tracking" << std::endl;
+        // MATCHN BETWEEN i 01 and 12
+        // B - match features
+        std::vector<std::vector<cv::DMatch>> matches_all;
+        my_flann->knnMatch(matching_desci_12, matching_desci_01, matches_all, 2);
+
+
+        std::vector<cv::DMatch> good_matches_all;
+        filter_good_matches(matches_all,
+                            0.5,
+                            good_matches_all);
+        
+
+        matching_kpi_1all.clear();
+        matching_kpi_0all.clear();
+        std::vector<cv::Point3f> points3Di_1_filtered;
+        // matching_desci_01.release();
+
+        std::cout << " etape 2.2 - tracking - sorting " << std::endl;
+        for (const auto& good : good_matches_all) 
+        {
+            // matching_kpi_1all.push_back(kpi_1[good.queryIdx]);
+            matching_kpi_0all.push_back(matching_kpi_01[good.trainIdx]);
+            points3Di_1_filtered.push_back(points3Di_1[good.queryIdx]); // points3D are points from image i-1 -> it mush be filtered using querry points
+            // matching_desci_01.push_back(desci_0.row(good.trainIdx));   
+        }
+        std::cout << " etape 2.2 - end tracking" << std::endl;
+        // filter finded 3D points -> must be matching with matching keypoints of frame i
 
         //NEW
         // on va devoir faire le matching entre les good descriptors entre i et i-1
@@ -417,8 +503,10 @@ void VisualOdometry_monocular::main_3D_to_2D()
         // (-> je me demande si on peut pas faire la triangulation avec seulement les points qui on marché ? -> je pense que y'a moyen mais ça a l'air d'êtr eun casse tête en plus alors que en les enlevant simplement c'est plus simple je pense)
         
         // @TODO
-        // refaire TOUTES la nomenclature pour que ça soit lisible avec ce changement 
-        // teste que mono marche correctement avec les changements
+        // refaire TOUTES la nomenclature pour que ça soit lisible avec ce changement DONE
+        // teste que mono marche correctement avec les changements DONE ça marche à peu près 
+        // faire le passe des donnée d'une frame à l'autre
+        // faire le matching entre i-2 i-1 et i-1 et i
 
         // OLD
         // new step -> tracking 3D points
@@ -433,10 +521,10 @@ void VisualOdometry_monocular::main_3D_to_2D()
         // if(0)
         // {
             // std::vector<cv::Point3f> points;
-            // points = points3D;
+            // points = points3Di_1;
 
             // VESION UN SUEL PONT CLOUDS
-            // points_viz.insert(points_viz.end(), points3D.begin(), points3D.end());
+            // points_viz.insert(points_viz.end(), points3Di_1.begin(), points3Di_1.end());
             // std::cout<< "NOMBRE DE POINTS\n" <<points_viz.size();
             // Créer un nuage de points
             // cv::viz::WCloud cloud(points_viz, cv::viz::Color::red());
@@ -450,8 +538,8 @@ void VisualOdometry_monocular::main_3D_to_2D()
             // // Boucle de rendu
             // window.spin();
         // }
-
-        points_array.push_back(points3D);
+        // points3Di_1_filtered instead ? 
+        points_array.push_back(points3Di_1);
         if(image_index == 3)
         {
             std::cout << " pcl " << std::endl;
@@ -482,12 +570,12 @@ void VisualOdometry_monocular::main_3D_to_2D()
         // 2.3 PNP ransac
         // (?) attention fonction qui renvoie une varaible (?)
         std::cout << " etape 2.3 " << std::endl;
-        cv::Mat Ti = find_Rti(matching_kpi_0,
-                                points3D,
+        cv::Mat Ti = find_Rti(matching_kpi_0all,
+                                points3Di_1_filtered,
                                 Rti);
 
         std::cout << " print Rti \n"<< Rti << std::endl;
-        std::cout << "  no more " << std::endl;
+        std::cout << " print ti "<< Ti << std::endl;
         C0 = C0 * Ti.inv();
 
         PMi_1 = PMi_0.clone(); 
@@ -499,12 +587,15 @@ void VisualOdometry_monocular::main_3D_to_2D()
         std::cout << " etape 2.4 " << std::endl;
         triangulate(PMi_0,
                     PMi_1,
-                    matching_kpi_0,
-                    matching_kpi_1,
-                    points3D);
+                    matching_kpi_01,
+                    matching_kpi_10,
+                    points3Di_1);
 
         write_pose("poses/3D_2D.txt", C0);
         std::cout << image_index <<std::endl;
+
+        // NEW STEP "swapping" data
+
 
     }
     std::cout << "Over" <<std::endl;
@@ -633,25 +724,29 @@ void VisualOdometry_monocular::printMatchesArray(const std::vector<std::vector<c
 int main()
 {
     VisualOdometry_monocular VO = VisualOdometry_monocular("example/KITTI_sequence_2");
-    VO.main_2D_to_2D();
+    VO.main_3D_to_2D();
     return(0);
 }
 
 /*
-
-- Comprendre flann et pourquoi c'est comme ça 
-- pourquoi knn et pas un autre
-- c'est quoi le mask à chaque fois ? 
-
 - peut être que le cacule de la matrice Ri est mauvaishttps://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#ga54a2f5b3f8aeaf6c76d4a31dece85d5d
-- L'axe y est vers le haut
-- il faut comprendre la partie triangulation MAIS on sait que recover pose fait le taff à notre place
-*/
-// il doit y avoir un soucis avec les matrices de projections
-// j'ai l'impression que les poitns 3D qui suivent sont plus petits ET inversé par rapport au 1er 
 
 
 // faire comme dans trackgpt -> actualiser les points 3D qu'on a 
+// modifier les noms des var dans extract et peut être changer les fonction tou court
+// rajouter une fonction "tracking"
+
+
+// vérifier que c'est bien el bon déroulé
+// Clean le code
+// et surtout rechanger les nom de var
+// enelver lee 2D->2D ? 
+// on sait qu'on a des valeurs abérantes edès al 1rer itération de PnP (x100 trop grand)
+/** CHECK
+ * -> matching keypoints c'est nul
+ * on choisit les bon points3D ou pas
+ * ATTNETION triangulate 220 !!!!
+ */
 
 /**
  * we call 

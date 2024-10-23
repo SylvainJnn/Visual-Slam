@@ -17,8 +17,8 @@ public:
     VisualOdometry_monocular(std::string new_data_directory);
     // ~VisualOdometry_monocular();
 
-    int motion_estimation(std::vector<cv::Point2f>& matching_kpi_0,
-                          std::vector<cv::Point2f>& matching_kpi_1,
+    int motion_estimation(std::vector<cv::Point2f>& matching_kpi_01,
+                          std::vector<cv::Point2f>& matching_kpi_10,
                           cv::Mat& Ri, 
                           cv::Mat& ti);
 
@@ -31,22 +31,23 @@ public:
                                     cv::Mat& desci_1, 
                                     std::vector<cv::KeyPoint>& kpi_0,  
                                     std::vector<cv::KeyPoint>& kpi_1,
-                                    std::vector<cv::Point2f>& matching_kpi_0,
-                                    std::vector<cv::Point2f>& matching_kpi_1);
+                                    std::vector<cv::Point2f>& matching_kpi_01,
+                                    std::vector<cv::Point2f>& matching_kpi_10,
+                                    cv::Mat& matching_desci_01);
 
     int triangulate(cv::Mat& PMi_0,
                     cv::Mat& PMi_1,
-                    std::vector<cv::Point2f>& matching_kpi_0,
-                    std::vector<cv::Point2f>& matching_kpi_1,
+                    std::vector<cv::Point2f>& matching_kpi_01,
+                    std::vector<cv::Point2f>& matching_kpi_10,
                     std::vector<cv::Point3f>& points3D);
 
-    cv::Mat find_Rti(std::vector<cv::Point2f>& matching_kpi_0,
-                 std::vector<cv::Point3f>& points3D,
+    cv::Mat find_Rti(std::vector<cv::Point2f> matching_kp,
+                 std::vector<cv::Point3f> points3D,
                  cv::Mat& Rti);
 
     cv::Mat fuse_R_t(cv::Mat R, cv::Mat t);
 
-    void main_2D_to_2D();
+    // void main_2D_to_2D();
     void main_3D_to_2D();
 
 private:
@@ -75,8 +76,8 @@ private:
     // std::vector<cv::KeyPoint> kpi_0; 
     // std::vector<cv::KeyPoint> kpi_1; //    also create a pointer to change ref reasily ? 
 
-    // std::vector<cv::Point2f> matching_kpi_0;
-    // std::vector<cv::Point2f> matching_kpi_1;
+    // std::vector<cv::Point2f> matching_kpi_01;
+    // std::vector<cv::Point2f> matching_kpi_10;
 
     
     cv::Ptr<cv::Feature2D> orb = cv::ORB::create(3000); // we can change the number 
