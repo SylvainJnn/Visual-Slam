@@ -57,7 +57,7 @@ int VisualOdometry_monocular::filter_good_matches(const std::vector<std::vector<
 {
     for (size_t i = 0; i < matches.size(); i++) 
     {
-        if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue // ATTENTION on devrait aussi vérifier si le tuple est bien de longeur 2 et pas autre chsoe
+        if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue 
         {
             std::cout << "Error : cell " << i    << " is empty." << std::endl; // before we checked with images index
         }
@@ -207,14 +207,18 @@ int VisualOdometry_monocular::triangulate(cv::Mat& PMi_0,
         points3D.emplace_back(Xn.at<float>(i), Yn.at<float>(i), Zn.at<float>(i)); // AUTRE MANIERE CHEC FAST
     }
 
-    std::cout << "print points" << std::endl;
-    // ATTENTION JE SAIS PAS SI CETTE PARTIE ET OCRRECT
+    // std::cout << "print points" << std::endl;
+    // // ATTENTION JE SAIS PAS SI CETTE PARTIE ET OCRRECT
+    // // -> si c'est bon 
 
-    std::cout << points4D.col(0) << std::endl;
-    std::cout << points3D[0] << std::endl;
+    // std::cout << points4D.col(0) << std::endl;
+    // std::cout << points3D[0] << std::endl;
 
-    std::cout << points4D.col(1)<< std::endl;
-    std::cout << points3D[1] << std::endl;
+    // std::cout << points4D.col(1)<< std::endl;
+    // std::cout << points3D[1] << std::endl;
+
+    // int oui;
+    // std::cin >> oui;
     
     // // std::cout << points4D << std::endl;
     // // cv::waitKey(0);  // marche pas pour stop
@@ -742,10 +746,12 @@ int main()
 // et surtout rechanger les nom de var
 // enelver lee 2D->2D ? 
 // on sait qu'on a des valeurs abérantes edès al 1rer itération de PnP (x100 trop grand)
-/** CHECK
- * -> matching keypoints c'est nul
- * on choisit les bon points3D ou pas
- * ATTNETION triangulate 220 !!!!
+/** option possible
+ * -> on se plante dans le matching des points et on envoie pas les bon points (doubt)
+ * -> points3D et triangualte semblait faux mais je vois pas comment on se rate, puisque que erreur des &ere itération
+ * -> distCoeffs -> peut être que ça change tout -> askip les images sont déjà rectifié donc ce serait nul 
+ * -> on se plant dans tout les variable qu'on a géchant ? 
+ * -> e=on gère mal Ti ou Rti avec rodrigues (doubt)
  */
 
 /**
