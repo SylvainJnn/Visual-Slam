@@ -236,29 +236,29 @@ cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f> matching_poi
                                            std::vector<cv::Point3f> points3D,
                                            cv::Mat& Rti)
 {
-    std::cout << "debut find rti" << std::endl;
+    // std::cout << "debut find rti" << std::endl;
     // Coefficients de distorsion (ici on suppose qu'il n'y en a pas)
     cv::Mat distCoeffs = cv::Mat::zeros(4, 1, CV_64F);
 
     // Paramètres pour solvePnPRansac // by defualt values
     int iterationsCount = 100;      // Nombre d'itérations
     float reprojectionError = 8.0;  // Tolérance d'erreur de reprojection en pixels
-    double confidence = 0.97;       // Confiance de l'algorithme RANSAC
+    double confidence = 0.99;       // Confiance de l'algorithme RANSAC
     cv::Mat inliers;                // Matrice qui stockera les inliers
 
     cv::Mat Rvec, tvec;
-    bool success = cv::solvePnPRansac(points3D, 
-                                      matching_points, 
-                                      intrinsic_matrix, 
-                                      distCoeffs, 
-                                      Rvec, 
-                                      tvec, 
-                                      false, 
-                                      iterationsCount, 
-                                      reprojectionError, 
-                                      confidence, 
-                                      inliers,
-                                      cv::SOLVEPNP_ITERATIVE);
+    // bool success = cv::solvePnPRansac(points3D, 
+    //                                   matching_points, 
+    //                                   intrinsic_matrix, 
+    //                                   distCoeffs, 
+    //                                   Rvec, 
+    //                                   tvec, 
+    //                                   false, 
+    //                                   iterationsCount, 
+    //                                   reprojectionError, 
+    //                                   confidence, 
+    //                                   inliers,
+    //                                   cv::SOLVEPNP_ITERATIVE);
     // std::cout << "debut calcul PnP " << std::endl;
     // std::cout << "matching_points "<< matching_points.size() << std::endl;
     // std::cout << "points3D "<< points3D.size() << std::endl;
@@ -272,7 +272,7 @@ cv::Mat VisualOdometry_monocular::find_Rti(std::vector<cv::Point2f> matching_poi
     // }
 
     
-    // cv::solvePnP(points3D, matching_points, intrinsic_matrix, cv::Mat(), Rvec, tvec);
+    cv::solvePnP(points3D, matching_points, intrinsic_matrix, cv::Mat(), Rvec, tvec);
     // std::cout << "fin calcul PnP,\n\n" << std::endl;
     
 
@@ -311,7 +311,7 @@ cv::Mat VisualOdometry_monocular::fuse_R_t(cv::Mat R, cv::Mat t)
 
     return(T);
 }
-/*
+
 void VisualOdometry_monocular::main_2D_to_2D()
 {
     std::cout << "Visual odometry monocular: 2D to 2D" << std::endl;
@@ -329,13 +329,16 @@ void VisualOdometry_monocular::main_2D_to_2D()
     std::vector<cv::KeyPoint> kpi_0; 
     std::vector<cv::KeyPoint> kpi_1; //    also create a pointer to change ref reasily ? 
 
+    cv::Mat matching_desci_01; 
+    cv::Mat matching_desci_12;
+
     std::vector<cv::Point2f> matching_pointsi_01;
     std::vector<cv::Point2f> matching_pointsi_10;
 
     cv::Mat Ri, ti; 
 
     // write first the first pose
-    write_pose("poses/test.txt", Ci);
+    write_pose(_output_poses, Ci);
 
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
     orb->detectAndCompute(images[0], cv::noArray(), kpi_0, desci_0);
@@ -369,12 +372,13 @@ void VisualOdometry_monocular::main_2D_to_2D()
 
         // std::cout << "Ti  :\n" << Ti <<std::endl;
         // std::cout << " Ci :\n" << Ci <<std::endl;
-        write_pose("poses/test.txt", Ci);
+        write_pose(_output_poses, Ci);
         std::cout << image_index <<std::endl;
     }
     std::cout << "Over" <<std::endl;
 }
-*/
+
+
 void VisualOdometry_monocular::main_3D_to_2D()
 {
     std::cout << "Visual odometry monocular: 2D to 2D" << std::endl;
@@ -383,8 +387,10 @@ void VisualOdometry_monocular::main_3D_to_2D()
     get_calibration(_data_directory);
     
     cv::Mat Ti = cv::Mat::zeros(4, 4, CV_32F); // Transform from image i-1 and i
-    cv::Mat C0 = cv::Mat::eye(4, 4, CV_32F); // current pose
+    cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
+    cv::Mat C0 = cv::Mat::eye(4, 4, CV_32F); // first pose
     C0 = get_first_pose(_data_directory);
+    Ci = C0.clone();
 
     cv::Mat desci_0;
     cv::Mat desci_1;
@@ -410,6 +416,7 @@ void VisualOdometry_monocular::main_3D_to_2D()
 
     std::vector<cv::Point3f> points_viz;
     std::vector<std::vector<cv::Point3f>> points_array;
+    std::vector<cv::Point3f> points_array_all;
 
     // write first the first pose
     write_pose(_output_poses, C0);
@@ -442,6 +449,10 @@ void VisualOdometry_monocular::main_3D_to_2D()
 
     cv::hconcat(Ri, ti, Rti); 
     Rti.convertTo(Rti, CV_32F); // Convert to from double to float
+
+    // do a first motion estimation 2D to 2D as there are only 2 images for the moment
+    Ti = fuse_R_t(Ri, ti);
+    Ci = C0 * Ti.inv(); // current pose * transformation
 
     PMi_0 = intrinsic_matrix * Rti; // Matrice de projection = K * [R|t], ici R1 et t1
 
@@ -494,7 +505,7 @@ void VisualOdometry_monocular::main_3D_to_2D()
 
         std::vector<cv::DMatch> good_matches_all;
         filter_good_matches(matches_all,
-                            0.5,
+                            0.7,
                             good_matches_all);
         
 
@@ -546,24 +557,47 @@ void VisualOdometry_monocular::main_3D_to_2D()
             // window.spin();
         // }
         // points3Di_1_filtered instead ? 
-        points_array.push_back(points3Di_1_filtered);
-        if(image_index == 3)
+        int lim = 13;
+        // if(image_index < lim )
+        //     points_array.push_back(points3Di_1_filtered);
+
+        // // points_array_all.inse18rt(points_array_all.efalsend(), 
+        // //                         points3Di_1_filtered.begin(), 
+        // //                         points3Di_1_filtered.end());
+
+            points_array.push_back(points3Di_1_filtered);
+        if(image_index > 6)
         {
-            std::cout << " pcl " << std::endl;
-            // créé/ajoute un nuage de points
-            cv::viz::WCloud cloud1(points_array[0], cv::viz::Color::red());
-            cv::viz::WCloud cloud2(points_array[1], cv::viz::Color::blue());
-            cv::viz::WCloud cloud3(points_array[2], cv::viz::Color::green());
-            cv::viz::WCloud cloud4(points_array[3]);
+            cv::viz::Viz3d window("pcl");
+            if(false)
+            {
+                // int v = lim-5;
+                int v = image_index-5;
+                std::cout << " pcl " << std::endl;
+                // créé/ajoute un nuage de points
+                cv::viz::WCloud cloud1(points_array[v], cv::viz::Color::yellow());
+                cv::viz::WCloud cloud2(points_array[v+1], cv::viz::Color::orange());
+                cv::viz::WCloud cloud3(points_array[v+2], cv::viz::Color::red());
+                cv::viz::WCloud cloud4(points_array[v+3], cv::viz::Color::blue());
+                cv::viz::WCloud cloud5(points_array[v+4], cv::viz::Color::green());
 
-            cv::viz::Viz3d window("2 pcl");
+                
 
-            window.showWidget("Cloud1", cloud1);
-            window.showWidget("Cloud2", cloud2);
-            window.showWidget("Cloud3", cloud3);
-            window.showWidget("Cloud4", cloud4);
+                window.showWidget("Cloud1", cloud1);
+                window.showWidget("Cloud2", cloud2);
+                window.showWidget("Cloud3", cloud3);
+                window.showWidget("Cloud4", cloud4);
+                window.showWidget("Cloud5", cloud5);
+            }
+            // else
+            // {
+            //     cv::viz::WCloud cloud(points_array_all, cv::viz::Color::orange());
+                
+            //     window.showWidget("Cloud", cloud);
+
+            // }
             
-            window.spin();
+            // window.spin();
         }
 
         // while (!window.wasStopped()) {
@@ -583,7 +617,7 @@ void VisualOdometry_monocular::main_3D_to_2D()
 
         // std::cout << " print Rti \n"<< Rti << std::endl;
         // std::cout << " print ti "<< Ti << std::endl;
-        C0 = C0 * Ti.inv();
+        Ci = Ci * Ti.inv();
 
         PMi_1 = PMi_0.clone(); 
         
@@ -598,7 +632,7 @@ void VisualOdometry_monocular::main_3D_to_2D()
                       matching_pointsi_01,
                       points3Di_1);
 
-        write_pose(_output_poses, C0);
+        write_pose(_output_poses, Ci);
         std::cout << image_index <<std::endl;
 
         // NEW STEP "swapping" data
@@ -731,8 +765,9 @@ void VisualOdometry_monocular::printMatchesArray(const std::vector<std::vector<c
 int main()
 {
     VisualOdometry_monocular VO = VisualOdometry_monocular("example/KITTI_sequence_1", 
-                                                           "poses/3D_2D.txt");
+                                                           "poses/seq1/3D_2D.txt");
     VO.main_3D_to_2D();
+    // VO.main_2D_to_2D();
     return(0);
 }
 
@@ -771,3 +806,5 @@ int main()
 
 
 // ON AVAIT la bonne forme en utilisant les points issues de i-0(all), on obient al bonne échelle en utilisant i-1(all)
+
+// je remarque que les points divergent -> ils finissment par faire nimp
