@@ -5,7 +5,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/viz.hpp>
-#include "include/VO_monocular.hpp"
+#include "VO_monocular.hpp"
 
 // using namespace std;
 
@@ -82,12 +82,16 @@ int VisualOdometry_monocular::filter_good_matches(const std::vector<std::vector<
  *  B - match them
  *  C - filter only the good match
  *  D - put in arrays q_i: coordinates vector of the matching keypoints on image i
- * @param image_index : index of the current image
- * @return matching_points1 : vector of points representing the coordinates of the matching keypoints in the previous image (image (i-1)th)
- * @return matching_points2 : vector of points representing the coordinates of the keypoints in the current image (image ith)
+ * @param image_index: index of the current image
+ * @param descriptors1
+ * @param descriptors2
+ * @return matching_points1: vector of points representing the coordinates of the matching keypoints in the previous image (image (i-1)th)
+ * @return matching_points2: vector of points representing the coordinates of the keypoints in the current image (image ith)
+ * @return matching_descriptors2: 
  */
 
-// {
+// on refait la fonction en plein de petite ? 
+// pour stereo, juste besoin d'avoir la fonction match pair or images
 int VisualOdometry_monocular::extract_and_matche_features(int image_index, 
                                                           cv::Mat& descriptors1, 
                                                           cv::Mat& descriptors2, 
@@ -808,3 +812,9 @@ int main()
 // ON AVAIT la bonne forme en utilisant les points issues de i-0(all), on obient al bonne échelle en utilisant i-1(all)
 
 // je remarque que les points divergent -> ils finissment par faire nimp
+
+/*
+
+pour regarder sur plus de 3 img on appelle i-2 old ou saved  et ensuite on fait le code de la même manière ? 
+
+*/
