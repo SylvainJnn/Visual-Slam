@@ -17,7 +17,7 @@ if [ ! -f "$source_file" ]; then
 fi
 
 # Compile g++
-g++ "$source_file" -o "$executable_name" `pkg-config --cflags --libs opencv4`
+g++ "$source_file" -Iinclude -o "$executable_name" `pkg-config --cflags --libs opencv4`
 
 # check if it workes
 if [ $? -eq 0 ]; then
