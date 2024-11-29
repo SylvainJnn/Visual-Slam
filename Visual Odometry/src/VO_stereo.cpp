@@ -35,15 +35,15 @@ int VisualOdometry_stereo::main()
     get_images(_data_directory, images_left, images_right);
 
     cv::Mat intrinsic_matrix_left;
-    cv::Mat intrinsic_matrix_right; 
-    cv::Mat projection_matrix_left;
-    cv::Mat projection_matrix_right;
+    cv::Mat intrinsic_matrix_right;
+
+    cv::Mat projection_matrix_left_old, projection_matrix_left_new, projection_matrix_right_old, projection_matrix_right_new;
 
     get_calibration(_data_directory,
                     intrinsic_matrix_left,
                     intrinsic_matrix_right,
-                    projection_matrix_left,
-                    projection_matrix_right)
+                    projection_matrix_left_old,
+                    projection_matrix_right_old);
 
     cv::Mat Ti = cv::Mat::zeros(4, 4, CV_32F); // Transform from image i-1 and i
     cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
@@ -88,7 +88,7 @@ int VisualOdometry_stereo::main()
         filter_good_matches(matches_right, 0.5, good_matches_right);
 
         // put in a function
-        std::vector<cv::Point2f>& matching_points_left, matching_points_right;
+        std::vector<cv::Point2f> matching_points_left_old, matching_points_left_new, matching_points_right_old, matching_points_right_new;
 
         filter_matching_points(good_matches_left,
                                kp_left_old,
@@ -105,9 +105,19 @@ int VisualOdometry_stereo::main()
 
         // 3) Triangulate matched features for each stereo pair
         
-        // PROJECTION MATRIX !!!!
-        find_3Dpoints();
+        std::vector<cv::Point3f> points3D_left, points3D_right;
 
+        find_3Dpoints(projection_matrix_left_old, 
+                      projection_matrix_left_new,
+                      matching_points_left_old,
+                      matching_points_left_new,
+                      points3D_left);
+        
+        find_3Dpoints(projection_matrix_right_old, 
+                      projection_matrix_right_new,
+                      matching_points_right_old,
+                      matching_points_right_new,
+                      points3D_right);
 
         // 4) Compute Tk from 3-D features Xk1 and Xk
         // 5) Concatenate transformation by computing
@@ -154,8 +164,8 @@ int VisualOdometry_stereo::filter_good_matches(const std::vector<std::vector<cv:
  * @brief
  */
 int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches,
-                                                  std::vector<cv::Point2f> keypoints1, 
-                                                  std::vector<cv::Point2f> keypoints2,
+                                                  std::vector<cv::KeyPoint> keypoints1, 
+                                                  std::vector<cv::KeyPoint> keypoints2,
                                                   std::vector<cv::Point2f>& matching_points1,
                                                   std::vector<cv::Point2f>& matching_points2)
 {
@@ -163,12 +173,13 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
     matching_points2.clear();
     // matching_descriptors2.release();
     
-    for (const auto& good : good_matches) 
+    for(const auto& good : good_matches) 
     {
-        matching_points1.push_back(keypoints1[good.queryIdx]);
-        matching_points2.push_back(keypoints2[good.trainIdx]);
+        matching_points1.push_back(keypoints1[good.queryIdx].pt); // maybe not .pt
+        matching_points2.push_back(keypoints2[good.trainIdx].pt);
         // matching_desci_01.push_back(desci_0.row(good.trainIdx));   
     }
+    return(0);
 }
 
 /**
@@ -221,7 +232,7 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
  */
 int VisualOdometry_stereo::get_images(const std::string& folder_path,
                                       std::vector<cv::Mat>& images_left,
-                                      std::vector<cv::Mat>& images_right);
+                                      std::vector<cv::Mat>& images_right)
 {
     std::string images_folder_path_left = folder_path + "/image_l/*.png";
     std::string images_folder_path_right = folder_path + "/image_r/*.png";
@@ -248,17 +259,16 @@ int VisualOdometry_stereo::get_images(const std::string& folder_path,
  * @return projection_matrix_left
  * @return projection_matrix_right
  */
-int VisualOdometry_monocular::get_calibration(const std::string& folder_path,
+int VisualOdometry_stereo::get_calibration(const std::string& folder_path,
                                               cv::Mat& intrinsic_matrix_left,
                                               cv::Mat& intrinsic_matrix_right,
                                               cv::Mat& projection_matrix_left,
-                                              cv::Mat& projection_matrix_right);
+                                              cv::Mat& projection_matrix_right)
 {
     intrinsic_matrix_left = cv::Mat::zeros(3, 3, CV_32F);
-    ntrinsic_matrix_right = cv::Mat::zeros(3, 3, CV_32F);
+    intrinsic_matrix_right = cv::Mat::zeros(3, 3, CV_32F);
     projection_matrix_left = cv::Mat::zeros(4, 4, CV_32F);
     projection_matrix_right = cv::Mat::zeros(4, 4, CV_32F);
-
 
     std::string calibration_path = folder_path + "/calib.txt";  
     float value;
@@ -288,7 +298,7 @@ int VisualOdometry_monocular::get_calibration(const std::string& folder_path,
         }
     }
 
-    return(1);
+    return(0);
 }
 
 /**
@@ -296,7 +306,7 @@ int VisualOdometry_monocular::get_calibration(const std::string& folder_path,
  * @param folder_path : path of the file containning the ground truth poses
  * @return C0, the first pose
  */
-cv::Mat VisualOdometry_monocular::get_first_pose(const std::string& folder_path)
+cv::Mat VisualOdometry_stereo::get_first_pose(const std::string& folder_path)
 {
     cv::Mat C0 = cv::Mat::eye(4, 4, CV_32F);
     std::string poses_path = folder_path + "/poses.txt";
@@ -314,7 +324,37 @@ cv::Mat VisualOdometry_monocular::get_first_pose(const std::string& folder_path)
     return(C0);
 }
 
-void VisualOdometry_monocular::printMatches(const std::vector<cv::DMatch>& matches) 
+/**
+ * @brief write poses in a txt file
+ * @param folder_path : path to write the poses
+ * @param poses : matrice containing all the computer poses
+ */
+int VisualOdometry_stereo::write_pose(const std::string& folder_path, const cv::Mat& poses)
+{
+    std::string poses_path = folder_path;// + "my_poses.txt";
+    std::ofstream pose_file(poses_path, std::ios::app);
+    if(pose_file.is_open()) 
+    {
+        for(int i = 0; i < poses.rows; i++)
+        {
+            for(int j = 0; j < poses.cols ; j++)
+            {
+                pose_file << poses.at<float>(i,j) << " ";
+            }
+        }
+        pose_file << std::endl;
+        pose_file.close();
+        std::cout << "line sucessfully written." << std::endl;
+    } 
+    else 
+    {
+        std::cerr << "Error : Cannot open file." << std::endl;
+    }
+
+    return(0);
+}
+
+void VisualOdometry_stereo::printMatches(const std::vector<cv::DMatch>& matches) 
 {
     for (size_t i = 0; i < matches.size(); i++) 
     {
@@ -327,11 +367,20 @@ void VisualOdometry_monocular::printMatches(const std::vector<cv::DMatch>& match
     }
 }
 
-void VisualOdometry_monocular::printMatchesArray(const std::vector<std::vector<cv::DMatch>>& matches_array) 
+void VisualOdometry_stereo::printMatchesArray(const std::vector<std::vector<cv::DMatch>>& matches_array) 
 {
     for (size_t i = 0; i < matches_array.size(); i++) 
     {
         std::cout << "Match array" << i << ":\n";
         printMatches(matches_array[i]);
     }
+}
+
+int main()
+{
+    VisualOdometry_stereo VO_stereo = VisualOdometry_stereo("example/KITTI_sequence_1", 
+                                                               "poses/seq1/3D_3D.txt");
+    VO_stereo.main();
+
+    return(0);
 }

@@ -32,11 +32,17 @@ private:
                             std::vector<cv::DMatch>& good_matches);
 
     
-int filter_matching_points(std::vector<cv::DMatch> good_matches,
-                           std::vector<cv::Point2f> keypoints1, 
-                           std::vector<cv::Point2f> keypoints2,
-                           std::vector<cv::Point2f>& matching_points1,
-                           std::vector<cv::Point2f>& matching_points2)
+    int filter_matching_points(std::vector<cv::DMatch> good_matches,
+                               std::vector<cv::KeyPoint> keypoints1, 
+                               std::vector<cv::KeyPoint> keypoints2,
+                               std::vector<cv::Point2f>& matching_points1,
+                               std::vector<cv::Point2f>& matching_points2);
+    
+    int find_3Dpoints(cv::Mat& projection_matrix1,
+                      cv::Mat& projection_matrix2,
+                      std::vector<cv::Point2f>& matching_points1,
+                      std::vector<cv::Point2f>& matching_points2,
+                      std::vector<cv::Point3f>& points3D);
 
     // functions to get dataset information
     int get_images(const std::string& folder_path,
@@ -66,7 +72,7 @@ int filter_matching_points(std::vector<cv::DMatch> good_matches,
     // TODO Je ne sais pas porquoi ces params la
     cv::Ptr<cv::flann::IndexParams> _index_params = cv::makePtr<cv::flann::LshIndexParams>(6, 12, 1);
     cv::Ptr<cv::flann::SearchParams> _search_params = cv::makePtr<cv::flann::SearchParams>(50);
-    cv::Ptr<cv::FlannBasedMatcher> _flann = cv::makePtr<cv::FlannBasedMatcher>(index_params, search_params);
+    cv::Ptr<cv::FlannBasedMatcher> _flann = cv::makePtr<cv::FlannBasedMatcher>(_index_params, _search_params);
 
 
 };
