@@ -42,8 +42,8 @@ int VisualOdometry_stereo::main()
     get_calibration(_data_directory,
                     intrinsic_matrix_left,
                     intrinsic_matrix_right,
-                    projection_matrix_left_old,
-                    projection_matrix_right_old);
+                    projection_matrix_left_new,
+                    projection_matrix_right_new);
 
     cv::Mat Ti = cv::Mat::zeros(4, 4, CV_32F); // Transform from image i-1 and i
     cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
@@ -54,6 +54,8 @@ int VisualOdometry_stereo::main()
 
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
     
+    std::cout << 1 << std::endl;
+
     std::vector<cv::KeyPoint> kp_left_old, kp_right_old, kp_left_new, kp_right_new;
     cv::Mat desc_left_old, desc_right_old, desc_left_new, desc_right_new;
 
@@ -62,6 +64,9 @@ int VisualOdometry_stereo::main()
     
     if(images_left.size() != images_right.size()) // check if there are the same numbers of images for left and right cameras
         return(-1);
+    
+
+    std::cout << 2 << std::endl;
 
     for(size_t image_index = 1; image_index < images_left.size(); image_index++)
     {
@@ -75,12 +80,17 @@ int VisualOdometry_stereo::main()
         _orb->detectAndCompute(images_left[image_index], cv::noArray(), kp_left_new, desc_left_new);
         _orb->detectAndCompute(images_right[image_index], cv::noArray(), kp_right_new, desc_right_new);
         
+
+        std::cout << 3 << std::endl;
+
         // 2) Extract and match features between Il;k1 and Il;k
         std::vector<std::vector<cv::DMatch>> matches_left, matches_right;
 
         _flann->knnMatch(desc_left_old, desc_left_new, matches_left, 2);
         _flann->knnMatch(desc_right_old, desc_right_new, matches_right, 2);
 
+
+        std::cout << 4 << std::endl;
 
         std::vector<cv::DMatch> good_matches_left, good_matches_right;
 
@@ -103,9 +113,27 @@ int VisualOdometry_stereo::main()
                                matching_points_right_new);
         
 
+        std::cout << 5 << std::endl;
+
         // 3) Triangulate matched features for each stereo pair
-        
+
+        //MAYBE NOT HERE
+        projection_matrix_left_old = projection_matrix_left_new.clone();
+        projection_matrix_right_old = projection_matrix_right_new.clone();
+
+        // projection_matrix_left_new = ...;
+        // projection_matrix_right_new = ...;
+
+
         std::vector<cv::Point3f> points3D_left, points3D_right;
+
+        std::cout << projection_matrix_right_old << std::endl;
+
+
+    
+
+
+        // solve PNP ? d'abor dpour cococ la position into on triangulate pour l'étape d'après ? 
 
         find_3Dpoints(projection_matrix_left_old, 
                       projection_matrix_left_new,
@@ -113,6 +141,7 @@ int VisualOdometry_stereo::main()
                       matching_points_left_new,
                       points3D_left);
         
+        std::cout << 6 << std::endl;
         find_3Dpoints(projection_matrix_right_old, 
                       projection_matrix_right_new,
                       matching_points_right_old,
@@ -120,10 +149,16 @@ int VisualOdometry_stereo::main()
                       points3D_right);
 
         // 4) Compute Tk from 3-D features Xk1 and Xk
+        cv::Mat inliers;
+        cv::Mat Ti;
+        cv::estimateAffine3D(points3D_left, points3D_right, Ti, inliers);
+
+        // std::cout << Ti <<std::endl;
+
         // 5) Concatenate transformation by computing
         // Ck = Ck1Tk
         // 6) Repeat from 1).
-         
+        write_pose(_output_poses, Ci);
     }
 
     return(0);
@@ -193,6 +228,8 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
 {
     cv::Mat points4D;
 
+    std::cout << 5.1 << std::endl;
+
     cv::triangulatePoints(projection_matrix1, // oldest camera
                           projection_matrix2, // newest caemra
                           matching_points1, 
@@ -200,6 +237,8 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
                           points4D);
 
     // cv::convertPointsFromHomogeneous ?
+
+    std::cout << 5.2 << std::endl;
 
     // set the 4D points to 3D
     cv::Mat X = points4D.row(0);
@@ -212,6 +251,7 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
     cv::Mat Yn = Y / W;
     cv::Mat Zn = Z / W;
 
+    std::cout << 5.3 << std::endl;
     // std::vector<cv::Point3f> points3D;
     points3D.clear();
     points3D.reserve(points4D.cols); // Reserve space for points
