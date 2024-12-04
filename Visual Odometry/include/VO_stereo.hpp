@@ -33,14 +33,14 @@ private:
 
     
     int filter_matching_points(std::vector<cv::DMatch> good_matches,
-                               std::vector<cv::KeyPoint> keypoints1, 
-                               std::vector<cv::KeyPoint> keypoints2,
+                               std::vector<cv::Point2f> points1, 
+                               std::vector<cv::Point2f> points2,
                                std::vector<cv::Point2f>& matching_points1,
                                std::vector<cv::Point2f>& matching_points2);
     
     int filter_matching_points(std::vector<cv::DMatch> good_matches,
-                               std::vector<cv::Point2f> keypoints1,  
-                               std::vector<cv::Point2f> keypoints2,
+                               std::vector<cv::Point2f> points1,  
+                               std::vector<cv::Point2f> points2,
                                cv::Mat desc1,
                                cv::Mat desc2,
                                std::vector<cv::Point2f>& matching_points1,

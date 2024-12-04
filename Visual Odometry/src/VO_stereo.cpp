@@ -100,15 +100,24 @@ int VisualOdometry_stereo::main()
         filter_good_matches(matches_old, 0.5, good_matches_old); // same 
         filter_good_matches(matches_new, 0.5, good_matches_new);
 
+
         // put in a function
+
+        std::vector<cv::Point2f> pts_left_old, pts_right_old, pts_left_new, pts_right_new;
+        
+        pts_left_old = cv2.KeyPoint_convert(kp_left_old);
+        pts_right_old = cv2.KeyPoint_convert(kp_right_old);
+        pts_left_new = cv2.KeyPoint_convert(kp_left_new);
+        pts_right_new = cv2.KeyPoint_convert(kp_right_new);
+
+
         std::vector<cv::Point2f> matching_points_left_old, matching_points_left_new, matching_points_right_old, matching_points_right_new;
 
-        // pts = cv2.KeyPoint_convert(kp)
 
 
         filter_matching_points(good_matches_old,
-                               kp_left_old,
-                               kp_right_old,
+                               pts_left_old,
+                               pts_right_old,
                                desc_left_old,
                                desc_right_old,
                                matching_points_left_old,
@@ -117,8 +126,8 @@ int VisualOdometry_stereo::main()
                                matching_desc_right_old); // same 
                                
         filter_matching_points(good_matches_new,
-                               kp_left_new,
-                               kp_right_new,
+                               pts_left_new,
+                               pts_right_new,
                                desc_left_new,
                                desc_right_new,
                                matching_points_left_new,
@@ -126,12 +135,23 @@ int VisualOdometry_stereo::main()
                                matching_desc_left_new,
                                matching_desc_right_new); // faut que ça renvoie aussi les decriptros 
 
-        std::vector<cv::Point2f> good_matches_all;
+
+
+        // faire comm en anglais: on va faire le amtching qu'entre les point Gauche et supposer que c'est bon car on a déjà matché les point g et droite avant: update -> match g old g new, match d d -> on filtre tout les points qui ne match pas (même ordre du coup simple à filtrer)
+        std::vector<cv::DMatch> good_matches_all;
         _flann->knnMatch(matching_desc_left_old, matching_desc_left_new, matches_all, 2);
         
-        // filter_good_matches(matches_all, 0.5, good_matches_all);
+        filter_good_matches(matches_all, 0.5, good_matches_all);
         
-        // filter_matching_points(ça me soule ); 
+
+        std::vector<cv::Point2f> m1, m2;
+        filter_matching_points(good_matches_all,
+                               matching_points_left_old,
+                               matching_points_left_new,
+                               m1,
+                               m2); 
+
+        // on re filtre ici sans avoir besoin de mathc car les points sont dans le même ordre ? // pour vérifier on prend une image et on color les 10er points
 
         std::cout << 5 << std::endl;
 
@@ -157,18 +177,18 @@ int VisualOdometry_stereo::main()
 
         // solve PNP ? d'abor dpour cococ la position into on triangulate pour l'étape d'après ? 
 
-        find_3Dpoints(projection_matrix_left_old, 
-                      projection_matrix_left_new,
-                      matching_points_left_old,
-                      matching_points_left_new,
-                      points3D_left);
+        find_3Dpoints(projection_matrix_left_0, 
+                      projection_matrix_right_0,
+                      m1, // chcanger !!!!!
+                      m3,
+                      points3D_old);
         
         std::cout << 6 << std::endl;
-        find_3Dpoints(projection_matrix_right_old, 
-                      projection_matrix_right_new,
-                      matching_points_right_old,
-                      matching_points_right_new,
-                      points3D_right);
+        find_3Dpoints(projection_matrix_left_0, 
+                      projection_matrix_right_0,
+                      m2,
+                      m4,
+                      points3D_new);
 
         // 4) Compute Tk from 3-D features Xk1 and Xk
         cv::Mat inliers;
@@ -221,8 +241,8 @@ int VisualOdometry_stereo::filter_good_matches(const std::vector<std::vector<cv:
  * @brief
  */
 int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches, // changer cette fonction 
-                                                  std::vector<cv::KeyPoint> keypoints1, // doit prendre en entré lesp oints 2Df après 
-                                                  std::vector<cv::KeyPoint> keypoints2,
+                                                  std::vector<cv::Point2f> points1, // doit prendre en entré lesp oints 2Df après 
+                                                  std::vector<cv::Point2f> points2,
                                                   std::vector<cv::Point2f>& matching_points1,
                                                   std::vector<cv::Point2f>& matching_points2)
 {
@@ -232,8 +252,8 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
     
     for(const auto& good : good_matches) 
     {
-        matching_points1.push_back(keypoints1[good.queryIdx].pt); // maybe not .pt
-        matching_points2.push_back(keypoints2[good.trainIdx].pt);
+        matching_points1.push_back(points1[good.queryIdx]); // maybe not .pt
+        matching_points2.push_back(points2[good.trainIdx]);
         // matching_desci_01.push_back(desci_0.row(good.trainIdx));   
     }
     return(0);
@@ -243,8 +263,8 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
  * @brief
  */
 int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches,
-                                                  std::vector<cv::Point2f> keypoints1,  
-                                                  std::vector<cv::Point2f> keypoints2,
+                                                  std::vector<cv::Point2f> points1,  
+                                                  std::vector<cv::Point2f> points2,
                                                   cv::Mat desc1,
                                                   cv::Mat desc2,
                                                   std::vector<cv::Point2f>& matching_points1,
@@ -259,8 +279,8 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
     
     for(const auto& good : good_matches) 
     {
-        matching_points1.push_back(keypoints1[good.queryIdx]); 
-        matching_points2.push_back(keypoints2[good.trainIdx]);
+        matching_points1.push_back(points1[good.queryIdx]); 
+        matching_points2.push_back(points1[good.trainIdx]);
         matching_descriptors1.push_back(desc1.row(good.queryIdx));  
         matching_descriptors2.push_back(desc2.row(good.trainIdx));   
     }
