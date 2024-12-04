@@ -37,13 +37,15 @@ int VisualOdometry_stereo::main()
     cv::Mat intrinsic_matrix_left;
     cv::Mat intrinsic_matrix_right;
 
-    cv::Mat projection_matrix_left_old, projection_matrix_left_new, projection_matrix_right_old, projection_matrix_right_new;
+    //cv::Mat projection_matrix_left_old, projection_matrix_left_new, projection_matrix_right_old, projection_matrix_right_new;
+    // on verra ce qu'on fait de ça 
+    cv::Mat projection_matrix_left_0; projection_matrix_right_0;
 
     get_calibration(_data_directory,
                     intrinsic_matrix_left,
                     intrinsic_matrix_right,
-                    projection_matrix_left_new,
-                    projection_matrix_right_new);
+                    projection_matrix_left_0,
+                    projection_matrix_right_0);
 
     cv::Mat Ti = cv::Mat::zeros(4, 4, CV_32F); // Transform from image i-1 and i
     cv::Mat Ci = cv::Mat::eye(4, 4, CV_32F); // current pose
@@ -83,43 +85,63 @@ int VisualOdometry_stereo::main()
 
         std::cout << 3 << std::endl;
 
-        // 2) Extract and match features between Il;k1 and Il;k
-        std::vector<std::vector<cv::DMatch>> matches_left, matches_right;
+        // 2) Extract and match features between Il;k1 and Il;k // CHANGEMENT extract between left/right new ET left/right old
+        std::vector<std::vector<cv::DMatch>> matches_old, matches_new, matches_all
 
-        _flann->knnMatch(desc_left_old, desc_left_new, matches_left, 2);
-        _flann->knnMatch(desc_right_old, desc_right_new, matches_right, 2);
+        _flann->knnMatch(desc_left_old, desc_right_old, matches_old, 2); // don't need to recompute it 
+        _flann->knnMatch(desc_left_new, desc_right_new, matches_new, 2); 
 
 
         std::cout << 4 << std::endl;
 
-        std::vector<cv::DMatch> good_matches_left, good_matches_right;
+        std::vector<cv::DMatch> good_matches_old, good_matches_new;
 
-        filter_good_matches(matches_left, 0.5, good_matches_left);
-        filter_good_matches(matches_right, 0.5, good_matches_right);
+
+        filter_good_matches(matches_old, 0.5, good_matches_old); // same 
+        filter_good_matches(matches_new, 0.5, good_matches_new);
 
         // put in a function
         std::vector<cv::Point2f> matching_points_left_old, matching_points_left_new, matching_points_right_old, matching_points_right_new;
 
-        filter_matching_points(good_matches_left,
+        // pts = cv2.KeyPoint_convert(kp)
+
+
+        filter_matching_points(good_matches_old,
                                kp_left_old,
-                               kp_left_new,
-                               matching_points_left_old,
-                               matching_points_left_new);
-                               
-        filter_matching_points(good_matches_left,
                                kp_right_old,
-                               kp_right_new,
+                               desc_left_old,
+                               desc_right_old,
+                               matching_points_left_old,
                                matching_points_right_old,
-                               matching_points_right_new);
+                               matching_desc_left_old,
+                               matching_desc_right_old); // same 
+                               
+        filter_matching_points(good_matches_new,
+                               kp_left_new,
+                               kp_right_new,
+                               desc_left_new,
+                               desc_right_new,
+                               matching_points_left_new,
+                               matching_points_right_new,
+                               matching_desc_left_new,
+                               matching_desc_right_new); // faut que ça renvoie aussi les decriptros 
+
+        std::vector<cv::Point2f> good_matches_all;
+        _flann->knnMatch(matching_desc_left_old, matching_desc_left_new, matches_all, 2);
         
+        // filter_good_matches(matches_all, 0.5, good_matches_all);
+        
+        // filter_matching_points(ça me soule ); 
 
         std::cout << 5 << std::endl;
 
         // 3) Triangulate matched features for each stereo pair
 
-        //MAYBE NOT HERE
-        projection_matrix_left_old = projection_matrix_left_new.clone();
-        projection_matrix_right_old = projection_matrix_right_new.clone();
+
+
+        //MAYBE NOT HERE / peut être plus besoin
+        // projection_matrix_left_old = projection_matrix_left_new.clone();
+        // projection_matrix_right_old = projection_matrix_right_new.clone();
 
         // projection_matrix_left_new = ...;
         // projection_matrix_right_new = ...;
@@ -129,7 +151,7 @@ int VisualOdometry_stereo::main()
 
         std::cout << projection_matrix_right_old << std::endl;
 
-
+        //points3D
     
 
 
@@ -179,7 +201,7 @@ int VisualOdometry_stereo::filter_good_matches(const std::vector<std::vector<cv:
     {
         if(matches[i].empty()) // check if the ith cell of matches is empty, if it is we drop it to avoid a segfault, otherwise we continue 
         {
-            std::cout << "Error : cell " << i    << " is empty." << std::endl; // before we checked with images index
+            std::cout << "Error : cell " << i << " is empty." << std::endl; // before we checked with images index
         }
         else if(matches[i].size() != 2 )
         {
@@ -198,8 +220,8 @@ int VisualOdometry_stereo::filter_good_matches(const std::vector<std::vector<cv:
 /**
  * @brief
  */
-int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches,
-                                                  std::vector<cv::KeyPoint> keypoints1, 
+int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches, // changer cette fonction 
+                                                  std::vector<cv::KeyPoint> keypoints1, // doit prendre en entré lesp oints 2Df après 
                                                   std::vector<cv::KeyPoint> keypoints2,
                                                   std::vector<cv::Point2f>& matching_points1,
                                                   std::vector<cv::Point2f>& matching_points2)
@@ -213,6 +235,34 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
         matching_points1.push_back(keypoints1[good.queryIdx].pt); // maybe not .pt
         matching_points2.push_back(keypoints2[good.trainIdx].pt);
         // matching_desci_01.push_back(desci_0.row(good.trainIdx));   
+    }
+    return(0);
+}
+
+/**
+ * @brief
+ */
+int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches,
+                                                  std::vector<cv::Point2f> keypoints1,  
+                                                  std::vector<cv::Point2f> keypoints2,
+                                                  cv::Mat desc1,
+                                                  cv::Mat desc2,
+                                                  std::vector<cv::Point2f>& matching_points1,
+                                                  std::vector<cv::Point2f>& matching_points2,
+                                                  cv::Mat& matching_descriptors1,
+                                                  cv::Mat& matching_descriptors2)
+{
+    matching_points1.clear();
+    matching_points2.clear();
+    matching_descriptors1.release();
+    matching_descriptors2.release();
+    
+    for(const auto& good : good_matches) 
+    {
+        matching_points1.push_back(keypoints1[good.queryIdx]); 
+        matching_points2.push_back(keypoints2[good.trainIdx]);
+        matching_descriptors1.push_back(desc1.row(good.queryIdx));  
+        matching_descriptors2.push_back(desc2.row(good.trainIdx));   
     }
     return(0);
 }

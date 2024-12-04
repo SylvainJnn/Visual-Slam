@@ -38,6 +38,16 @@ private:
                                std::vector<cv::Point2f>& matching_points1,
                                std::vector<cv::Point2f>& matching_points2);
     
+    int filter_matching_points(std::vector<cv::DMatch> good_matches,
+                               std::vector<cv::Point2f> keypoints1,  
+                               std::vector<cv::Point2f> keypoints2,
+                               cv::Mat desc1,
+                               cv::Mat desc2,
+                               std::vector<cv::Point2f>& matching_points1,
+                               std::vector<cv::Point2f>& matching_points2,
+                               cv::Mat& matching_descriptors1,
+                               cv::Mat& matching_descriptors2);
+    
     int find_3Dpoints(cv::Mat& projection_matrix1,
                       cv::Mat& projection_matrix2,
                       std::vector<cv::Point2f>& matching_points1,
