@@ -5,5 +5,6 @@
 | Objective                     | State            |
 |-------------------------------|------------------|
 | Monocular Visual Odometry      | Completed        |
-| Stereo Visual Odometry        | Not started yet  |
+| Stereo Visual Odometry        | Ongoing  |
+| Bundle Adjustment                 | Not started yet  |
 | Visual SLAM                   | Not started yet  |
