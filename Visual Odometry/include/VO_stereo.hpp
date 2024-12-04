@@ -54,6 +54,8 @@ private:
                       std::vector<cv::Point2f>& matching_points2,
                       std::vector<cv::Point3f>& points3D);
 
+    cv::Mat jsp(cv::Mat Rt);
+
     // functions to get dataset information
     int get_images(const std::string& folder_path,
                    std::vector<cv::Mat>& images_left,
