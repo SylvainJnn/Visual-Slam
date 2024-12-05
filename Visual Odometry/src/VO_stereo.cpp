@@ -30,16 +30,30 @@ int VisualOdometry_stereo::main()
 {
     std::cout << "Visual odometry stereo" << std::endl;
 
-    std::vector<cv::Mat> images_left;
-    std::vector<cv::Mat> images_right;
-    get_images(_data_directory, images_left, images_right);
+    // Initial variables
 
-    cv::Mat intrinsic_matrix_left;
-    cv::Mat intrinsic_matrix_right;
+    std::vector<cv::Mat> images_left, images_right;
+    
+    cv::Mat intrinsic_matrix_left, intrinsic_matrix_right;
 
     //cv::Mat projection_matrix_left_old, projection_matrix_left_new, projection_matrix_right_old, projection_matrix_right_new;
     // on verra ce qu'on fait de ça 
     cv::Mat projection_matrix_left_0, projection_matrix_right_0;
+
+    std::vector<cv::KeyPoint> kp_left_old, kp_right_old, kp_left_new, kp_right_new;
+    cv::Mat desc_left_old, desc_right_old, desc_left_new, desc_right_new;
+
+    std::vector<std::vector<cv::DMatch>> matches_old, matches_new;
+    
+    std::vector<cv::DMatch> good_matches_old, good_matches_new;
+    
+    std::vector<cv::Point2f> pts_left_old, pts_right_old, pts_left_new, pts_right_new;
+
+    std::vector<cv::Point2f> matching_points_left_old, matching_points_right_old, matching_points_left_new, matching_points_right_new;
+    cv::Mat matching_desc_left_old, matching_desc_right_old, matching_desc_left_new, matching_desc_right_new;
+
+
+    get_images(_data_directory, images_left, images_right);
 
     get_calibration(_data_directory,
                     intrinsic_matrix_left,
@@ -55,75 +69,102 @@ int VisualOdometry_stereo::main()
     write_pose(_output_poses, Ci);
 
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
-    
+    // extract keypoints
     std::cout << 1 << std::endl;
-
-    std::vector<cv::KeyPoint> kp_left_old, kp_right_old, kp_left_new, kp_right_new;
-    cv::Mat desc_left_old, desc_right_old, desc_left_new, desc_right_new;
-
     _orb->detectAndCompute(images_left[0], cv::noArray(), kp_left_new, desc_left_new);
     _orb->detectAndCompute(images_right[0], cv::noArray(), kp_right_new, desc_right_new);
     
+    // std::cout << 2 << std::endl;
+    // match
+    _flann->knnMatch(desc_left_new, desc_right_new, matches_new, 2); 
+
+    // find matches
+    filter_good_matches(matches_new, 0.5, good_matches_new);  
+
+    // Filter function uses 2d poitns and not keypoints
+    cv::KeyPoint::convert(kp_left_new, pts_left_new);
+    cv::KeyPoint::convert(kp_right_new, pts_right_new);
+
+    // filter the keypoints and descriptors to only have the one that matche
+    filter_matching_points(good_matches_new,
+                           pts_left_new,
+                           pts_right_new,
+                           desc_left_new,
+                           desc_right_new,
+                           matching_points_left_new,
+                           matching_points_right_new,
+                           matching_desc_left_new,
+                           matching_desc_right_new); 
+
+    std::vector<cv::Point3f> points3D_old, points3D_new;
+
+    // std::cout << projection_matrix_left_0 << std::endl;
+    // std::cout << projection_matrix_right_0 << std::endl;
+
+    find_3Dpoints(projection_matrix_left_0, 
+                    projection_matrix_right_0,
+                    matching_points_left_new, 
+                    matching_points_right_new,
+                    points3D_new);
+
     if(images_left.size() != images_right.size()) // check if there are the same numbers of images for left and right cameras
         return(-1);
-    
-
-    // std::cout << 2 << std::endl;
 
     for(size_t image_index = 1; image_index < images_left.size(); image_index++)
     {
-        kp_left_old = kp_left_new;
-        kp_right_old = kp_right_new;
 
-        desc_left_old = desc_left_new.clone();
-        desc_right_old = desc_right_new.clone();
+        // update old variables before updating new varaibles
 
+        // kp_left_old = kp_left_new;
+        // kp_right_old = kp_right_new;
+
+        pts_left_old = pts_left_new;
+        pts_left_old = pts_right_new;
+
+        // desc_left_old = desc_left_new.clone();
+        // desc_right_old = desc_right_new.clone();
+
+        matches_old = matches_new;
+        good_matches_old = good_matches_new;
+        
+
+        points3D_old = points3D_new;
+        points3D_new.clear();
+
+        matching_points_left_old= matching_points_left_new;
+        matching_points_right_old = matching_points_right_new;
+
+        matching_desc_left_old = matching_desc_left_new.clone();
+        matching_desc_right_old = matching_desc_right_new.clone(); 
+    
         // 1) Capture two stereo image pairs Il;k1, Ir;k1 and Il;k, Ir;k
         _orb->detectAndCompute(images_left[image_index], cv::noArray(), kp_left_new, desc_left_new);
         _orb->detectAndCompute(images_right[image_index], cv::noArray(), kp_right_new, desc_right_new);
-        
 
-        // std::cout << 3 << std::endl;
-
-        // 2) Extract and match features between Il;k1 and Il;k // CHANGEMENT extract between left/right new ET left/right old
-        std::vector<std::vector<cv::DMatch>> matches_old, matches_new, matches_all;
-
-        _flann->knnMatch(desc_left_old, desc_right_old, matches_old, 2); // don't need to recompute it 
+        // 2) Extract and match features between left and right
+        matches_new.clear();
         _flann->knnMatch(desc_left_new, desc_right_new, matches_new, 2); 
-
-
-        // std::cout << 4 << std::endl;
-
-        std::vector<cv::DMatch> good_matches_old, good_matches_new;
-
-
-        filter_good_matches(matches_old, 0.5, good_matches_old); // same 
+        int ya;
+        // std::cin >> ya;
+        good_matches_new.clear();   
         filter_good_matches(matches_new, 0.5, good_matches_new);
-
-
-        // put in a function
-
-        std::vector<cv::Point2f> pts_left_old, pts_right_old, pts_left_new, pts_right_new;
         
-        cv::KeyPoint::convert(kp_left_old, pts_left_old);
-        cv::KeyPoint::convert(kp_right_old, pts_right_old);
+        // Filter function uses 2d poitns and not keypoints
         cv::KeyPoint::convert(kp_left_new, pts_left_new);
         cv::KeyPoint::convert(kp_right_new, pts_right_new);
 
 
-        std::vector<cv::Point2f> matching_points_left_old, matching_points_right_old, matching_points_left_new, matching_points_right_new;
-        cv::Mat matching_desc_left_old, matching_desc_right_old, matching_desc_left_new, matching_desc_right_new;
-
-        filter_matching_points(good_matches_old,
-                               pts_left_old,
-                               pts_right_old,
-                               desc_left_old,
-                               desc_right_old,
-                               matching_points_left_old,
-                               matching_points_right_old,
-                               matching_desc_left_old,
-                               matching_desc_right_old); // same 
+        // filter_matching_points(good_matches_old,
+        //                        pts_left_old,
+        //                        pts_right_old,
+        //                        desc_left_old,
+        //                        desc_right_old,
+        //                        matching_points_left_old,
+        //                        matching_points_right_old,
+        //                        matching_desc_left_old,
+        //                        matching_desc_right_old); // same 
                                
+        // keep only the matching points
         filter_matching_points(good_matches_new,
                                pts_left_new,
                                pts_right_new,
@@ -135,82 +176,124 @@ int VisualOdometry_stereo::main()
                                matching_desc_right_new); // faut que ça renvoie aussi les decriptros 
 
 
-
-        // faire comm en anglais: on va faire le amtching qu'entre les point Gauche et supposer que c'est bon car on a déjà matché les point g et droite avant: update -> match g old g new, match d d -> on filtre tout les points qui ne match pas (même ordre du coup simple à filtrer)
-        std::vector<cv::DMatch> good_matches_all;
-        _flann->knnMatch(matching_desc_left_old, matching_desc_left_new, matches_all, 2);
-        
-        filter_good_matches(matches_all, 0.5, good_matches_all);
-        
-        // find a better name 
-        std::vector<cv::Point2f> matching_points_left_old_mieux, matching_points_right_old_mieux, matching_points_left_new_mieux, matching_points_right_new_mieux;
-
-        filter_matching_points(good_matches_all,
-                               matching_points_left_old,
-                               matching_points_left_new,
-                               matching_points_left_old_mieux,
-                               matching_points_left_new_mieux); 
-
-        // on re filtre ici sans avoir besoin de mathc car les points sont dans le même ordre ? // pour vérifier on prend une image et on color les 10er points
-        filter_matching_points(good_matches_all,
-                               matching_points_right_old,
-                               matching_points_right_new,
-                               matching_points_right_old_mieux,
-                               matching_points_right_new_mieux); 
-
-
-        // std::cout << 5 << std::endl;
-
-        // 3) Triangulate matched features for each stereo pair
-
-
-
-        //MAYBE NOT HERE / peut être plus besoin
-        // projection_matrix_left_old = projection_matrix_left_new.clone();
-        // projection_matrix_right_old = projection_matrix_right_new.clone();
-
-        // projection_matrix_left_new = ...;
-        // projection_matrix_right_new = ...;
-
-
-        // std::vector<cv::Point3f> points3D_left, points3D_right;
-
-        // std::cout << projection_matrix_right_old << std::endl;
-
-        //points3D
-
-        // solve PNP ? d'abor dpour cococ la position into on triangulate pour l'étape d'après ? 
-        
-        std::vector<cv::Point3f> points3D_old, points3D_new;
-
-        // std::cout << projection_matrix_left_0 << std::endl;
-        // std::cout << projection_matrix_right_0 << std::endl;
-
+        ////
+        // test - dans un premier temps on va faire le mathc des points 2D left uniquement, on peut améliorer ça en faisant matché tout 
         find_3Dpoints(projection_matrix_left_0, 
                       projection_matrix_right_0,
-                      matching_points_left_old_mieux, 
-                      matching_points_right_old_mieux,
-                      points3D_old);
-        
-        std::cout << "2eme 3D points find" << std::endl;
-        find_3Dpoints(projection_matrix_left_0, 
-                      projection_matrix_right_0,
-                      matching_points_left_new_mieux,
-                      matching_points_right_new_mieux,
+                      matching_points_left_new,
+                      matching_points_right_new,
                       points3D_new);
 
-        // std::cout << 6 << std::endl;
+        // filter (put in a function)
+        std::vector<std::vector<cv::DMatch>>  matches_left_both;
+        
+        _flann->knnMatch(matching_desc_left_old, matching_desc_left_new, matches_left_both, 2);
 
-        // 4) Compute Tk from 3-D features Xk1 and Xk
+        std::vector<cv::DMatch> good_matches_left_both;
+
+        // std::cin >> ya;
+        filter_good_matches(matches_left_both, 0.5, good_matches_left_both);
+
+        std::vector<cv::Point3f> points3D_old_filtered, points3D_new_filtered;
+        for(const auto& good_l : good_matches_left_both) 
+        {
+            points3D_old_filtered.push_back(points3D_old[good_l.queryIdx]); // ATTENTION ON OEUT PAS FAIRE COMME ÇA ici
+            points3D_new_filtered.push_back(points3D_new[good_l.trainIdx]);
+            // matching_desci_01.push_back(desci_0.row(good.trainIdx));   
+        }
+
+
+        // time for points arrays
+        
+
+        // // faire comm en anglais: on va faire le amtching qu'entre les point Gauche et supposer que c'est bon car on a déjà matché les point g et droite avant: update -> match g old g new, match d d -> on filtre tout les points qui ne match pas (même ordre du coup simple à filtrer)
+        
+        // std::vector<std::vector<cv::DMatch>>  matches_left_both, matches_right_both;
+        // _flann->knnMatch(matching_desc_left_old, matching_desc_left_new, matches_left_both, 2);
+        // _flann->knnMatch(matching_desc_right_old, matching_desc_right_new, matches_left_both, 2);
+
+        // std::vector<cv::DMatch> good_matches_left_both, good_matches_right_both;
+        // filter_good_matches(matches_left_both, 0.5, good_matches_left_both);
+        // filter_good_matches(matches_right_both, 0.5, good_matches_right_both);
+
+        
+        // // find a better name 
+        // std::vector<cv::Point2f> matching_points_left_old_mieux, matching_points_right_old_mieux, matching_points_left_new_mieux, matching_points_right_new_mieux;
+
+        // filter_matching_points(good_matches_left_both,
+        //                        matching_points_left_old,
+        //                        matching_points_left_new,
+        //                        matching_points_left_old_mieux,
+        //                        matching_points_left_new_mieux); 
+
+        // // on re filtre ici sans avoir besoin de mathc car les points sont dans le même ordre ? // pour vérifier on prend une image et on color les 10er points
+        // filter_matching_points(good_matches_right_both,
+        //                        matching_points_right_old,
+        //                        matching_points_right_new,
+        //                        matching_points_right_old_mieux,
+        //                        matching_points_right_new_mieux); 
+
+        // // std::cout << 5 << std::endl;
+
+        // // 3) Triangulate matched features for each stereo pair
+
+
+
+        // //MAYBE NOT HERE / peut être plus besoin
+        // // projection_matrix_left_old = projection_matrix_left_new.clone();
+        // // projection_matrix_right_old = projection_matrix_right_new.clone();
+
+        // // projection_matrix_left_new = ...;
+        // // projection_matrix_right_new = ...;
+
+
+        // // std::vector<cv::Point3f> points3D_left, points3D_right;
+
+        // // std::cout << projection_matrix_right_old << std::endl;
+
+        // //points3D
+
+        // // solve PNP ? d'abor dpour cococ la position into on triangulate pour l'étape d'après ? 
+        
+        // std::vector<cv::Point3f> points3D_old, points3D_new;
+
+        // // std::cout << projection_matrix_left_0 << std::endl;
+        // // std::cout << projection_matrix_right_0 << std::endl;
+
+        // find_3Dpoints(projection_matrix_left_0, 
+        //               projection_matrix_right_0,
+        //               matching_points_left_old_mieux, 
+        //               matching_points_right_old_mieux,
+        //               points3D_old);
+        
+        // std::cout << "2eme 3D points find" << std::endl;
+        // find_3Dpoints(projection_matrix_left_0, 
+        //               projection_matrix_right_0,
+        //               matching_points_left_new_mieux,
+        //               matching_points_right_new_mieux,
+        //               points3D_new);
+
+        // // std::cout << 6 << std::endl;
+
+
+
+        // // 4) Compute Tk from 3-D features Xk1 and Xk
         cv::Mat inliers;
         cv::Mat Rti;
-        // std::cout << points3D_old << std::endl;
+        // std::cout << points3D_old_filtered.size() << std::endl;
 
-        cv::estimateAffine3D(points3D_old, points3D_new, Rti, inliers);
+        // std::cout << points3D_new_filtered.size() << std::endl;
+        
+
+        cv::estimateAffine3D(points3D_old_filtered, points3D_new_filtered, Rti, inliers);
         // std::cout << 7 << std::endl;
         // std::cout << Ti <<std::endl;
         cv::Mat Ti = jsp(Rti);
-
+        // de toute evidence notre Ti est faux, qu'en es il du reste ? 
+        // on peut afficher les points 3d et voir ? 
+        // fautdrait il matcher deux fois (on le fait qu'une fois) pour être certian d'avoir les bon point
+        // on pourrait en profiter pour clean et pas faire tout deux fois 
+        // essayer sove pnp plutôt que estimateAffine3D
 
         // std::cout <<"voici Ti\n" << inliers << std::endl; 
 
@@ -279,7 +362,7 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
 }
 
 /**
- * @brief
+ * @brief IMPORTANT: the returned matching points and descriptors are in the same order => matching_points 1 and 2 of [i] AND matching descriptors 1 and 2 of [i] -> same point
  */
 int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches,
                                                   std::vector<cv::Point2f> points1,  
