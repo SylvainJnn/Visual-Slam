@@ -13,6 +13,11 @@ VisualOdometry_stereo::VisualOdometry_stereo()
     std::cout<<"Nothing specified\n";
 }
 
+/**
+ * @brief Constructor of the class
+ * @param new_data_directory: dataset directory
+ * @param new_output_poses: file to write the computed poses
+ */
 VisualOdometry_stereo::VisualOdometry_stereo(std::string new_data_directory,
                                              std::string new_output_poses)
 {
