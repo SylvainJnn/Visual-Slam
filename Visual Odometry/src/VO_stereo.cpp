@@ -365,7 +365,7 @@ int VisualOdometry_stereo::main()
         cv::estimateAffine3D(points3D_old_filtered, points3D_new_filtered, Rti, inliers);
         // std::cout << 7 << std::endl;
         // std::cout << Ti <<std::endl;
-        cv::Mat Ti = jsp(Rti);
+        cv::Mat Ti = to_homogenous(Rti);
         // de toute evidence notre Ti est faux, qu'en es il du reste ? 
         // on peut afficher les points 3d et voir ? 
         // fautdrait il matcher deux fois (on le fait qu'une fois) pour être certian d'avoir les bon point
@@ -388,9 +388,9 @@ int VisualOdometry_stereo::main()
 
 /**
  * @brief filter only the good match using "..."'s threshold  
- * @param matches : vector containinng all the matches
- * @param ratio_thresh : 0=<value <=1; in order to sleect the best from a certain level(make it better)
- * @return good_matches : vector containing all the good matches 
+ * @param matches: vector containinng all the matches
+ * @param ratio_thresh:  0=<value <=1; in order to sleect the best from a certain level(make it better)
+ * @return good_matches: vector containing all the good matches 
  */
 int VisualOdometry_stereo::filter_good_matches(const std::vector<std::vector<cv::DMatch>> matches, 
                                                const float ratio_thresh, 
@@ -417,7 +417,13 @@ int VisualOdometry_stereo::filter_good_matches(const std::vector<std::vector<cv:
 
 
 /**
- * @brief
+ * @brief: use matches to take off from descriptors and 2D points the non matching points and return the matching ones in the same order. The returned matching points and descriptors are in the same order => matching_points 1 and 2 of [i] AND matching descriptors 1 and 2 of [i] -> same point
+ * @param points1:  vector contaning image 1's points
+ * @param points2:  vector contaning image 2's points
+ * @param desc1: matrice of descriptors of points from image 1 
+ * @param desc2: matrice of descriptors of points from image 2
+ * @return matching_points1: vector of 2D points that match with image 2's points
+ * @return matching_points2: vector of 2D points that match with image 1's points
  */
 int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches, // changer cette fonction 
                                                   std::vector<cv::Point2f> points1, // doit prendre en entré lesp oints 2Df après 
@@ -439,7 +445,15 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
 }
 
 /**
- * @brief IMPORTANT: the returned matching points and descriptors are in the same order => matching_points 1 and 2 of [i] AND matching descriptors 1 and 2 of [i] -> same point
+ * @brief: use matches to take off from descriptors and 2D points the non matching points and return the matching ones in the same order. The returned matching points and descriptors are in the same order => matching_points 1 and 2 of [i] AND matching descriptors 1 and 2 of [i] -> same point
+ * @param points1:  vector contaning image 1's points
+ * @param points2:  vector contaning image 2's points
+ * @param desc1: matrice of descriptors of points from image 1 
+ * @param desc2: matrice of descriptors of points from image 2
+ * @return matching_points1: vector of 2D points that match with image 2's points
+ * @return matching_points2: vector of 2D points that match with image 1's points
+ * @return matching_descriptors1: matrice of matching descriptors of image 1 to image 2
+ * @return matching_descriptors2: matrice of matching descriptors of image 2 to image 1
  */
 int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_matches,
                                                   std::vector<cv::Point2f> points1,  
@@ -467,12 +481,17 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
 }
 
 /**
- * @brief
+ * @brief find the 3D points using trinagulate points function and convert them to homogenous coordinates
+ * @param projection_matrix1 : projection matrix of image 1
+ * @param projection_matrix2 : projection matrix of image 2
+ * @param matching_points1 : matching points from image 1 with image 2
+ * @param matching_points2 : matching points from image 2 with image 1
+ * @return points3D : vector with the 3D coordinates of the matching points of image 1 and 2
  */
 int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
                                          cv::Mat& projection_matrix2,
-                                         std::vector<cv::Point2f>& matching_points1,
-                                         std::vector<cv::Point2f>& matching_points2,
+                                         std::vector<cv::Point2f> matching_points1,
+                                         std::vector<cv::Point2f> matching_points2,
                                          std::vector<cv::Point3f>& points3D)
 {
     // cv::Mat points4D;
@@ -502,7 +521,7 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
 
     // std::cout << 5.2 << std::endl;
 
-    // set the 4D points to 3D
+    // set the 4D points to 3D // put this into a fucntion ? 
     cv::Mat X = points4D.row(0);
     cv::Mat Y = points4D.row(1);
     cv::Mat Z = points4D.row(2);
@@ -530,7 +549,12 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
 }
 
 
-cv::Mat VisualOdometry_stereo::jsp(cv::Mat Rt)
+/**
+ * @brief: 
+ * @param Rt: matrice 3x4 containing [R|t] rotation matrix and translation vector
+ * @return T: the 4x4 transformation matrice
+*/
+cv::Mat VisualOdometry_stereo::to_homogenous(cv::Mat Rt)
 {
     cv::Mat T = cv::Mat::eye(4, 4, CV_32F);
     Rt.copyTo(T(cv::Rect(0,0,4,3)));
@@ -539,9 +563,12 @@ cv::Mat VisualOdometry_stereo::jsp(cv::Mat Rt)
 
 
 /**
- *
- *
- *  
+ * @brief convert points1 and 2 from points2f to keypoints and call show_matches
+ * @param image1: 
+ * @param image2: 
+ * @param points1: vector contaning image 1's points
+ * @param points1: vector contaning image 2's points
+ * @param matches: vector containing matches between image 1 and 2
  */
 int VisualOdometry_stereo::show_matches_points(cv::Mat image1, 
                                                 cv::Mat image2,
@@ -569,6 +596,15 @@ int VisualOdometry_stereo::show_matches_points(cv::Mat image1,
     return(0);
 }
 
+/** 
+ * @brief: show two images, print keypoints and draw matches
+ * @param image1: 
+ * @param image2: 
+ * @param keypoint1: vector contaning image 1's keypoints
+ * @param keypoint2: vector contaning image 2's keypoints
+ * @param matches: vector containing matches between image 1 and 2
+ */
+
 int VisualOdometry_stereo::show_matches(cv::Mat image1, 
                                         cv::Mat image2,
                                         std::vector<cv::KeyPoint> keypoints1,
@@ -576,34 +612,25 @@ int VisualOdometry_stereo::show_matches(cv::Mat image1,
                                         std::vector<cv::DMatch> matches)
 {        
     cv::Mat img_matches;
-    std::cout << "\nmatch point \n";
-    std::cout << keypoints1.size()<< " - ";
 
-    std::cout << keypoints2.size()<< std::endl;
-    std::cout << matches[matches.size()-1].queryIdx << "\n  c'était la taille des matches \n"; //<< " " << matches[0].queryIdx << " " << matches[0].trainIdx << std::endl;
-
-
-
-
-    // Option pour ne pas dessiner les points individuels
     cv::drawMatches(image1, keypoints1, image2, keypoints2, matches, img_matches, 
                     cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 
-    // Redimensionner l'image résultante si elle est trop grande pour l'écran
+    // Redimension the image to fit screen
     double scale_factor = 0.7; // Facteur de redimensionnement (ajustez en fonction de la taille de vos images)
     cv::resize(img_matches, img_matches, cv::Size(), scale_factor, scale_factor);
 
-    // Afficher les correspondances
+    // draw good corespondances
     cv::imshow("Good Matches", img_matches);
-    cv::waitKey(0); // Attend une touche pour fermer la fenêtre
+    cv::waitKey(0); 
     return(0);
 }
 
 /**
  * @brief get images from dataset
  * @param folder_path path of the images
- * @return images_left vector of matrice. Each elecment of the vector is an image if the left camera
- * @return images_right vector of matrice. Each elecment of the vector is an image if the right camera
+ * @return images_left: vector of matrice. Each elecment of the vector is an image if the left camera
+ * @return images_right: vector of matrice. Each elecment of the vector is an image if the right camera
  */
 int VisualOdometry_stereo::get_images(const std::string& folder_path,
                                       std::vector<cv::Mat>& images_left,
@@ -629,10 +656,10 @@ int VisualOdometry_stereo::get_images(const std::string& folder_path,
 /**
  * @brief Read calib.txt file and get the intrinsict and projection matrix 
  * @param folder_path : path of the file containning the calibration
- * @return intrinsic_matrix_left
- * @return intrinsic_matrix_right
- * @return projection_matrix_left
- * @return projection_matrix_right
+ * @return intrinsic_matrix_left : intrinsic matrice of the left camera
+ * @return intrinsic_matrix_right : intrinsic matrice of the right camera
+ * @return projection_matrix_left : projection matric of the left camera
+ * @return projection_matrix_right : projection matric of the left camera
  */
 int VisualOdometry_stereo::get_calibration(const std::string& folder_path,
                                               cv::Mat& intrinsic_matrix_left,
@@ -678,7 +705,7 @@ int VisualOdometry_stereo::get_calibration(const std::string& folder_path,
 
 /**
  * @brief get the first pose of the dataset form poses.txt
- * @param folder_path : path of the file containning the ground truth poses
+ * @param folder_path : str containg the poses file
  * @return C0, the first pose
  */
 cv::Mat VisualOdometry_stereo::get_first_pose(const std::string& folder_path)
@@ -700,8 +727,8 @@ cv::Mat VisualOdometry_stereo::get_first_pose(const std::string& folder_path)
 }
 
 /**
- * @brief write poses in a txt file
- * @param folder_path : path to write the poses
+ * @brief write poses in a  file
+ * @param folder_path : str containg the 3D points file 
  * @param poses : matrice containing all the computer poses
  */
 int VisualOdometry_stereo::write_pose(const std::string& folder_path, const cv::Mat& poses)
@@ -729,6 +756,11 @@ int VisualOdometry_stereo::write_pose(const std::string& folder_path, const cv::
     return(0);
 }
 
+/**
+ * @brief: write 3D points in a file
+ * @param points_path : str containg the file of the points
+ * @param points3D : vector of 3D points
+ */
 int VisualOdometry_stereo::write_3Dpoints(const std::string& points_path, const std::vector<cv::Point3f>& points3D)
 {
     // std::string points_path = folder_path;// + "my_poses.txt";
@@ -752,7 +784,11 @@ int VisualOdometry_stereo::write_3Dpoints(const std::string& points_path, const 
     return(0);
 }
 
-void VisualOdometry_stereo::printMatches(const std::vector<cv::DMatch>& matches) 
+/**
+ * @brief print matches to show its details
+ * @param matches: vector of matches 
+ */
+int VisualOdometry_stereo::print_matches(const std::vector<cv::DMatch>& matches) 
 {
     for (size_t i = 0; i < matches.size(); i++) 
     {
@@ -763,15 +799,21 @@ void VisualOdometry_stereo::printMatches(const std::vector<cv::DMatch>& matches)
                 << ", Distance: " << matches[i].distance
                 << "\n";
     }
+    return(0);
 }
 
-void VisualOdometry_stereo::printMatchesArray(const std::vector<std::vector<cv::DMatch>>& matches_array) 
+/**
+ * @brief: Take a vector of vector and call in a for loop the function print matches in order to print the whole matches
+ * @param matches_arrayvector: 2D vector of matches 
+ */
+int VisualOdometry_stereo::print_matches_array(const std::vector<std::vector<cv::DMatch>>& matches_array) 
 {
     for (size_t i = 0; i < matches_array.size(); i++) 
     {
         std::cout << "Match array" << i << ":\n";
-        printMatches(matches_array[i]);
+        print_matches(matches_array[i]);
     }
+    return(0);
 }
 
 int main()

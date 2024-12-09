@@ -9,10 +9,6 @@
 #include <opencv2/opencv.hpp>
 
 
-
-
-
-
 class VisualOdometry_stereo
 {
 public:
@@ -50,8 +46,8 @@ private:
     
     int find_3Dpoints(cv::Mat& projection_matrix1,
                       cv::Mat& projection_matrix2,
-                      std::vector<cv::Point2f>& matching_points1,
-                      std::vector<cv::Point2f>& matching_points2,
+                      std::vector<cv::Point2f> matching_points1,
+                      std::vector<cv::Point2f> matching_points2,
                       std::vector<cv::Point3f>& points3D);
 
     cv::Mat to_homogenous(cv::Mat Rt);
@@ -86,8 +82,9 @@ private:
     int write_3Dpoints(const std::string& points_path, const std::vector<cv::Point3f>& points3D);
 
     // print matched between two images -> use for debug
-    void printMatches(const std::vector<cv::DMatch>& matches);
-    void printMatchesArray(const std::vector<std::vector<cv::DMatch>>& matches_array);
+    int print_matches(const std::vector<cv::DMatch>& matches);
+
+    int print_matches_array(const std::vector<std::vector<cv::DMatch>>& matches_array);
 
     // Attribute
     std::string _data_directory;
