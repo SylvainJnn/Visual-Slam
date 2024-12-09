@@ -54,7 +54,7 @@ private:
                       std::vector<cv::Point2f>& matching_points2,
                       std::vector<cv::Point3f>& points3D);
 
-    cv::Mat jsp(cv::Mat Rt);
+    cv::Mat to_homogenous(cv::Mat Rt);
 
     int show_matches_points(cv::Mat image1, 
                             cv::Mat image2,
