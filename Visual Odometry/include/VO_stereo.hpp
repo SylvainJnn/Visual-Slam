@@ -56,6 +56,18 @@ private:
 
     cv::Mat jsp(cv::Mat Rt);
 
+    int show_matches_points(cv::Mat image1, 
+                            cv::Mat image2,
+                            std::vector<cv::Point2f> points1,
+                            std::vector<cv::Point2f> points2,
+                            std::vector<cv::DMatch> matches);
+
+    int show_matches(cv::Mat image1, 
+                     cv::Mat image2,
+                     std::vector<cv::KeyPoint> keypoints1,
+                     std::vector<cv::KeyPoint> keypoints2,
+                     std::vector<cv::DMatch> matches);
+
     // functions to get dataset information
     int get_images(const std::string& folder_path,
                    std::vector<cv::Mat>& images_left,
@@ -70,6 +82,8 @@ private:
     cv::Mat get_first_pose(const std::string& folder_path);
 
     int write_pose(const std::string& folder_path, const cv::Mat& poses);
+
+    int write_3Dpoints(const std::string& points_path, const std::vector<cv::Point3f>& points3D);
 
     // print matched between two images -> use for debug
     void printMatches(const std::vector<cv::DMatch>& matches);

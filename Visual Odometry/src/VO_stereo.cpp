@@ -110,13 +110,15 @@ int VisualOdometry_stereo::main()
     if(images_left.size() != images_right.size()) // check if there are the same numbers of images for left and right cameras
         return(-1);
 
+
+    std::vector<std::vector<cv::Point3f>> points_array;
     for(size_t image_index = 1; image_index < images_left.size(); image_index++)
     {
 
         // update old variables before updating new varaibles
 
-        // kp_left_old = kp_left_new;
-        // kp_right_old = kp_right_new;
+        kp_left_old = kp_left_new;
+        kp_right_old = kp_right_new;
 
         pts_left_old = pts_left_new;
         pts_left_old = pts_right_new;
@@ -131,7 +133,7 @@ int VisualOdometry_stereo::main()
         points3D_old = points3D_new;
         points3D_new.clear();
 
-        matching_points_left_old= matching_points_left_new;
+        matching_points_left_old = matching_points_left_new;
         matching_points_right_old = matching_points_right_new;
 
         matching_desc_left_old = matching_desc_left_new.clone();
@@ -178,11 +180,47 @@ int VisualOdometry_stereo::main()
 
         ////
         // test - dans un premier temps on va faire le mathc des points 2D left uniquement, on peut améliorer ça en faisant matché tout 
+        
+        std::cout << "\n\n";
+          std::cout << matching_points_right_new.size()<< " - " << matching_points_left_new.size()  << " - " << good_matches_new.size()<< "\n";
+
+        // matche pas
+        //show_matches(images_left[image_index], images_right[image_index], matching_points_left_new, matching_points_right_new, good_matches_new);
+        
+        // puise qu'on utliser match, on doit mettre en entré les point avant filtrage !!!
+
+
+        std::vector<cv::DMatch> hihi; //
+        
+        if(matching_points_left_new.size() == matching_points_right_new.size())
+        {
+            for(size_t i = 0; i < matching_points_left_new.size(); i++)
+            {
+                cv::DMatch match_i;
+                match_i.trainIdx = i;
+                match_i.queryIdx = i;
+                // match_i.distance = 10;
+                hihi.push_back(match_i);
+
+            }
+        }
+
+
+        // show_matches_points(images_left[image_index], images_right[image_index], pts_left_new, pts_right_new, good_matches_new);
+        // show_matches_points(images_left[image_index], images_right[image_index], matching_points_left_new, matching_points_right_new, hihi);
+        
+        std::cout << "\fin\n";
+
+        std::cout << projection_matrix_left_0 << std::endl;
+        std::cout << projection_matrix_right_0 << std::endl;
+
         find_3Dpoints(projection_matrix_left_0, 
                       projection_matrix_right_0,
                       matching_points_left_new,
                       matching_points_right_new,
                       points3D_new);
+
+        
 
         // filter (put in a function)
         std::vector<std::vector<cv::DMatch>>  matches_left_both;
@@ -202,6 +240,45 @@ int VisualOdometry_stereo::main()
             // matching_desci_01.push_back(desci_0.row(good.trainIdx));   
         }
 
+        // show_matches(images_left[image_index-1], images_left[image_index], matching_points_left_old, matching_points_left_new, good_matches_left_both);
+        // nvm ça math
+
+        // ================
+        // ==== 3D VIZ ====
+        // ================
+
+        // passer à open3D en python ? -> on cherche à capter la prjections des point 3D pour l'index i
+        // write_pose(" step_i")
+        std::string points3D_file = "3Dpoints/test_" + std::to_string(image_index); + ".txt"; 
+        // ATTENTION IL Y A DES NOMBRE ABÉRAMENT GRAND !! // car des nobmre dsont en 32 et d'autre en 64bit ? 
+        write_3Dpoints(points3D_file, points3D_old);
+        points_array.push_back(points3D_new);
+        std::cout<< "size of 3D points " << points_array.size() << std::endl;
+        std::cout<< "size of 3D points of the current one " << points_array[image_index-1].size() << std::endl;
+        
+        // int lim = 8;
+
+        if(image_index > 7 && false)
+        {
+            cv::viz::Viz3d window("pcl");
+            int v = image_index-5;
+            std::cout << " pcl " << std::endl;
+
+            // créé/ajoute un nuage de points
+            cv::viz::WCloud cloud1(points_array[v], cv::viz::Color::yellow());
+            // cv::viz::WCloud cloud2(points_array[v+1], cv::viz::Color::orange());
+            // cv::viz::WCloud cloud3(points_array[v+2], cv::viz::Color::red());
+            // cv::viz::WCloud cloud4(points_array[v+3], cv::viz::Color::blue());
+            // cv::viz::WCloud cloud5(points_array[v+4], cv::viz::Color::green());
+
+            window.showWidget("Cloud1", cloud1);
+            // window.showWidget("Cloud2", cloud2);
+            // window.showWidget("Cloud3", cloud3);
+            // window.showWidget("Cloud4", cloud4);
+            // window.showWidget("Cloud5", cloud5);
+
+            window.spin();
+        }
 
         // time for points arrays
         
@@ -300,7 +377,7 @@ int VisualOdometry_stereo::main()
         std::cout <<"voici Ti à la case " << image_index << "\n" << Ti << std::endl; 
     
         // 5) Concatenate transformation by computing
-        Ci = Ci * Ti;
+        Ci = Ci * Ti.inv();
         // 6) Repeat from 1).
         write_pose(_output_poses, Ci);
     }
@@ -382,7 +459,7 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
     for(const auto& good : good_matches) 
     {
         matching_points1.push_back(points1[good.queryIdx]); 
-        matching_points2.push_back(points1[good.trainIdx]);
+        matching_points2.push_back(points2[good.trainIdx]);
         matching_descriptors1.push_back(desc1.row(good.queryIdx));  
         matching_descriptors2.push_back(desc2.row(good.trainIdx));   
     }
@@ -398,7 +475,8 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
                                          std::vector<cv::Point2f>& matching_points2,
                                          std::vector<cv::Point3f>& points3D)
 {
-    cv::Mat points4D;
+    // cv::Mat points4D;
+    cv::Mat points4D = cv::Mat::zeros(4, 3, CV_32F);
 
     // std::cout << 5.1 << std::endl;
 
@@ -412,8 +490,13 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
                           matching_points1, 
                           matching_points2,
                           points4D);
+    
+    
+    // ATTENTION OMEGA GIGA TATTNEITON certain de mes W sont négatifs !!!!
 
-    // std::cout << "points4D\n" << points4D << std::endl;
+
+    std::cout << "points4D\n" << points4D.col(1) << std::endl;
+    // std::cout << points4D.cols(0)<< std::endl;
 
     // cv::convertPointsFromHomogeneous ?
 
@@ -423,7 +506,7 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
     cv::Mat X = points4D.row(0);
     cv::Mat Y = points4D.row(1);
     cv::Mat Z = points4D.row(2);
-    cv::Mat W = points4D.row(3);    
+    cv::Mat W = cv::abs(points4D.row(3));     // TEST VALEUR ABSOLUE
 
     // Divede Xn, Yn, Zn by Wn
     cv::Mat Xn = X / W;
@@ -437,10 +520,12 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
     // Fill points3D with the converted coordinates
     for (int i = 0; i < points4D.cols; ++i) 
     {
-        points3D.emplace_back(Xn.at<float>(i), Yn.at<float>(i), Zn.at<float>(i)); // AUTRE MANIERE CHEC FAST
+        points3D.emplace_back(Xn.at<float>(i), 
+                              Yn.at<float>(i), 
+                              Zn.at<float>(i)); // AUTRE MANIERE CHEC FAST
     }
 
-    // std::cout << "points3D\n" << points3D << std::endl;
+    std::cout << "points3D\n" << points3D[1] << std::endl;
     return(0);
 }
 
@@ -452,6 +537,67 @@ cv::Mat VisualOdometry_stereo::jsp(cv::Mat Rt)
     return(T);
 }
 
+
+/**
+ *
+ *
+ *  
+ */
+int VisualOdometry_stereo::show_matches_points(cv::Mat image1, 
+                                                cv::Mat image2,
+                                                std::vector<cv::Point2f> points1,
+                                                std::vector<cv::Point2f> points2,
+                                                std::vector<cv::DMatch> matches)
+{        
+    std::vector<cv::KeyPoint> keypoints1, keypoints2;
+
+    for (const auto& pt : points1) 
+    {
+        cv::KeyPoint kp(pt, 10.0f); // Taille du keypoint = 10.0f (modifiable)
+        keypoints1.push_back(kp);
+    }
+    
+    for (const auto& pt : points2) 
+    {
+        cv::KeyPoint kp(pt, 10.0f); // Taille du keypoint = 10.0f (modifiable)
+        keypoints2.push_back(kp);
+    }
+    std::cout << matches.size() << "v2";
+
+    show_matches(image1, image2, keypoints1, keypoints2, matches);
+    
+    return(0);
+}
+
+int VisualOdometry_stereo::show_matches(cv::Mat image1, 
+                                        cv::Mat image2,
+                                        std::vector<cv::KeyPoint> keypoints1,
+                                        std::vector<cv::KeyPoint> keypoints2,
+                                        std::vector<cv::DMatch> matches)
+{        
+    cv::Mat img_matches;
+    std::cout << "\nmatch point \n";
+    std::cout << keypoints1.size()<< " - ";
+
+    std::cout << keypoints2.size()<< std::endl;
+    std::cout << matches[matches.size()-1].queryIdx << "\n  c'était la taille des matches \n"; //<< " " << matches[0].queryIdx << " " << matches[0].trainIdx << std::endl;
+
+
+
+
+    // Option pour ne pas dessiner les points individuels
+    cv::drawMatches(image1, keypoints1, image2, keypoints2, matches, img_matches, 
+                    cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+
+    // Redimensionner l'image résultante si elle est trop grande pour l'écran
+    double scale_factor = 0.7; // Facteur de redimensionnement (ajustez en fonction de la taille de vos images)
+    cv::resize(img_matches, img_matches, cv::Size(), scale_factor, scale_factor);
+
+    // Afficher les correspondances
+    cv::imshow("Good Matches", img_matches);
+    cv::waitKey(0); // Attend une touche pour fermer la fenêtre
+    return(0);
+}
 
 /**
  * @brief get images from dataset
@@ -583,6 +729,29 @@ int VisualOdometry_stereo::write_pose(const std::string& folder_path, const cv::
     return(0);
 }
 
+int VisualOdometry_stereo::write_3Dpoints(const std::string& points_path, const std::vector<cv::Point3f>& points3D)
+{
+    // std::string points_path = folder_path;// + "my_poses.txt";
+    std::ofstream points_file(points_path, std::ios::app);
+    if(points_file.is_open()) 
+    {
+        for (const auto& point : points3D) 
+        {
+            points_file << point.x << " " << point.y << " " << point.z << "\n";
+        }
+        points_file << std::endl;
+        points_file.close();
+        std::cout << "file sucessfully written." << std::endl;
+    } 
+
+    else 
+    {
+        std::cerr << "Error : Cannot open file." << std::endl;
+    }
+
+    return(0);
+}
+
 void VisualOdometry_stereo::printMatches(const std::vector<cv::DMatch>& matches) 
 {
     for (size_t i = 0; i < matches.size(); i++) 
@@ -613,3 +782,15 @@ int main()
 
     return(0);
 }
+
+
+
+
+/**
+ * PROCHIANE FOIS
+ * clean
+ * commente
+ * on check si c'es tle même format partout 
+ * on print les points qui matches (pas les kp avec les matches, on s'assure que ce sont les même point !!!!)
+ * 
+ */
