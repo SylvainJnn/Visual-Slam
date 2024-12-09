@@ -77,7 +77,7 @@ private:
 
     cv::Mat get_first_pose(const std::string& folder_path);
 
-    int write_pose(const std::string& folder_path, const cv::Mat& poses);
+    int write_pose(const std::string& folder_path, const cv::Mat& pose);
 
     int write_3Dpoints(const std::string& points_path, const std::vector<cv::Point3f>& points3D);
 

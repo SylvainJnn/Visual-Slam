@@ -482,11 +482,11 @@ int VisualOdometry_stereo::filter_matching_points(std::vector<cv::DMatch> good_m
 
 /**
  * @brief find the 3D points using trinagulate points function and convert them to homogenous coordinates
- * @param projection_matrix1 : projection matrix of image 1
- * @param projection_matrix2 : projection matrix of image 2
- * @param matching_points1 : matching points from image 1 with image 2
- * @param matching_points2 : matching points from image 2 with image 1
- * @return points3D : vector with the 3D coordinates of the matching points of image 1 and 2
+ * @param projection_matrix1: projection matrix of image 1
+ * @param projection_matrix2: projection matrix of image 2
+ * @param matching_points1: matching points from image 1 with image 2
+ * @param matching_points2: matching points from image 2 with image 1
+ * @return points3D: vector with the 3D coordinates of the matching points of image 1 and 2
  */
 int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
                                          cv::Mat& projection_matrix2,
@@ -628,7 +628,7 @@ int VisualOdometry_stereo::show_matches(cv::Mat image1,
 
 /**
  * @brief get images from dataset
- * @param folder_path path of the images
+ * @param folder_path: path of the images
  * @return images_left: vector of matrice. Each elecment of the vector is an image if the left camera
  * @return images_right: vector of matrice. Each elecment of the vector is an image if the right camera
  */
@@ -656,10 +656,10 @@ int VisualOdometry_stereo::get_images(const std::string& folder_path,
 /**
  * @brief Read calib.txt file and get the intrinsict and projection matrix 
  * @param folder_path : path of the file containning the calibration
- * @return intrinsic_matrix_left : intrinsic matrice of the left camera
- * @return intrinsic_matrix_right : intrinsic matrice of the right camera
- * @return projection_matrix_left : projection matric of the left camera
- * @return projection_matrix_right : projection matric of the left camera
+ * @return intrinsic_matrix_left: intrinsic matrice of the left camera
+ * @return intrinsic_matrix_right: intrinsic matrice of the right camera
+ * @return projection_matrix_left: projection matric of the left camera
+ * @return projection_matrix_right: projection matric of the left camera
  */
 int VisualOdometry_stereo::get_calibration(const std::string& folder_path,
                                               cv::Mat& intrinsic_matrix_left,
@@ -706,7 +706,7 @@ int VisualOdometry_stereo::get_calibration(const std::string& folder_path,
 /**
  * @brief get the first pose of the dataset form poses.txt
  * @param folder_path : str containg the poses file
- * @return C0, the first pose
+ * @return C0: the first pose
  */
 cv::Mat VisualOdometry_stereo::get_first_pose(const std::string& folder_path)
 {
@@ -728,10 +728,10 @@ cv::Mat VisualOdometry_stereo::get_first_pose(const std::string& folder_path)
 
 /**
  * @brief write poses in a  file
- * @param folder_path : str containg the 3D points file 
- * @param poses : matrice containing all the computer poses
+ * @param folder_path: str containg the 3D points file 
+ * @param pose: matrice of the prose
  */
-int VisualOdometry_stereo::write_pose(const std::string& folder_path, const cv::Mat& poses)
+int VisualOdometry_stereo::write_pose(const std::string& folder_path, const cv::Mat pose)
 {
     std::string poses_path = folder_path;// + "my_poses.txt";
     std::ofstream pose_file(poses_path, std::ios::app);
@@ -752,14 +752,13 @@ int VisualOdometry_stereo::write_pose(const std::string& folder_path, const cv::
     {
         std::cerr << "Error : Cannot open file." << std::endl;
     }
-
     return(0);
 }
 
 /**
  * @brief: write 3D points in a file
- * @param points_path : str containg the file of the points
- * @param points3D : vector of 3D points
+ * @param points_path: str containg the file of the points
+ * @param points3D: vector of 3D points
  */
 int VisualOdometry_stereo::write_3Dpoints(const std::string& points_path, const std::vector<cv::Point3f>& points3D)
 {
