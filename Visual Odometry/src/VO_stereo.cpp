@@ -33,6 +33,13 @@ VisualOdometry_stereo::~VisualOdometry_stereo()
 
 int VisualOdometry_stereo::main()
 {
+    // the code is currently not working well, it compiles but the 3D points reprojection are not correct and so the calculated poses is not correct too. 
+    // based on Tutorial on Visual Odometry - by Davide Scaramuzza
+    // please take a look and fix the code.
+
+    
+
+
     std::cout << "Visual odometry stereo" << std::endl;
 
     // Initial variables
@@ -40,6 +47,7 @@ int VisualOdometry_stereo::main()
     std::vector<cv::Mat> images_left, images_right;
     
     cv::Mat intrinsic_matrix_left, intrinsic_matrix_right;
+
 
     //cv::Mat projection_matrix_left_old, projection_matrix_left_new, projection_matrix_right_old, projection_matrix_right_new;
     // on verra ce qu'on fait de ça 
@@ -75,7 +83,6 @@ int VisualOdometry_stereo::main()
 
     // Initiate current keypoints and descriptors --> the loop start from iamge 1 and re use the previous keypoints and descriptors 
     // extract keypoints
-    std::cout << 1 << std::endl;
     _orb->detectAndCompute(images_left[0], cv::noArray(), kp_left_new, desc_left_new);
     _orb->detectAndCompute(images_right[0], cv::noArray(), kp_right_new, desc_right_new);
     
@@ -103,8 +110,11 @@ int VisualOdometry_stereo::main()
 
     std::vector<cv::Point3f> points3D_old, points3D_new;
 
-    // std::cout << projection_matrix_left_0 << std::endl;
-    // std::cout << projection_matrix_right_0 << std::endl;
+    // test imrpove point
+    // utiliser :
+    // findFundamentalMat -> F la matrice fondamental (utiliser ransac)
+    // correctMatches (F, point1, point2, better point1, ...)
+
 
     find_3Dpoints(projection_matrix_left_0, 
                     projection_matrix_right_0,
@@ -119,6 +129,7 @@ int VisualOdometry_stereo::main()
     std::vector<std::vector<cv::Point3f>> points_array;
     for(size_t image_index = 1; image_index < images_left.size(); image_index++)
     {
+
 
         // update old variables before updating new varaibles
 
@@ -156,20 +167,9 @@ int VisualOdometry_stereo::main()
         good_matches_new.clear();   
         filter_good_matches(matches_new, 0.5, good_matches_new);
         
-        // Filter function uses 2d poitns and not keypoints
+        // filter_matching_points function uses 2d poitns and not keypoints
         cv::KeyPoint::convert(kp_left_new, pts_left_new);
         cv::KeyPoint::convert(kp_right_new, pts_right_new);
-
-
-        // filter_matching_points(good_matches_old,
-        //                        pts_left_old,
-        //                        pts_right_old,
-        //                        desc_left_old,
-        //                        desc_right_old,
-        //                        matching_points_left_old,
-        //                        matching_points_right_old,
-        //                        matching_desc_left_old,
-        //                        matching_desc_right_old); // same 
                                
         // keep only the matching points
         filter_matching_points(good_matches_new,
@@ -180,10 +180,9 @@ int VisualOdometry_stereo::main()
                                matching_points_left_new,
                                matching_points_right_new,
                                matching_desc_left_new,
-                               matching_desc_right_new); // faut que ça renvoie aussi les decriptros 
+                               matching_desc_right_new); // faut que ça renvoie aussi les decriptors 
 
 
-        ////
         // test - dans un premier temps on va faire le mathc des points 2D left uniquement, on peut améliorer ça en faisant matché tout 
         
         std::cout << "\n\n";
@@ -195,30 +194,12 @@ int VisualOdometry_stereo::main()
         // puise qu'on utliser match, on doit mettre en entré les point avant filtrage !!!
 
 
-        std::vector<cv::DMatch> hihi; //
-        
-        if(matching_points_left_new.size() == matching_points_right_new.size())
-        {
-            for(size_t i = 0; i < matching_points_left_new.size(); i++)
-            {
-                cv::DMatch match_i;
-                match_i.trainIdx = i;
-                match_i.queryIdx = i;
-                // match_i.distance = 10;
-                hihi.push_back(match_i);
-
-            }
-        }
-
-
-        // show_matches_points(images_left[image_index], images_right[image_index], pts_left_new, pts_right_new, good_matches_new);
-        // show_matches_points(images_left[image_index], images_right[image_index], matching_points_left_new, matching_points_right_new, hihi);
-        
         std::cout << "\fin\n";
 
         std::cout << projection_matrix_left_0 << std::endl;
         std::cout << projection_matrix_right_0 << std::endl;
 
+        // why is the 3D points projection bad ? 
         find_3Dpoints(projection_matrix_left_0, 
                       projection_matrix_right_0,
                       matching_points_left_new,
@@ -234,7 +215,6 @@ int VisualOdometry_stereo::main()
 
         std::vector<cv::DMatch> good_matches_left_both;
 
-        // std::cin >> ya;
         filter_good_matches(matches_left_both, 0.5, good_matches_left_both);
 
         std::vector<cv::Point3f> points3D_old_filtered, points3D_new_filtered;
@@ -244,9 +224,6 @@ int VisualOdometry_stereo::main()
             points3D_new_filtered.push_back(points3D_new[good_l.trainIdx]);
             // matching_desci_01.push_back(desci_0.row(good.trainIdx));   
         }
-
-        // show_matches(images_left[image_index-1], images_left[image_index], matching_points_left_old, matching_points_left_new, good_matches_left_both);
-        // nvm ça math
 
         // ================
         // ==== 3D VIZ ====
@@ -260,111 +237,62 @@ int VisualOdometry_stereo::main()
         points_array.push_back(points3D_new);
         std::cout<< "size of 3D points " << points_array.size() << std::endl;
         std::cout<< "size of 3D points of the current one " << points_array[image_index-1].size() << std::endl;
+
+        // faire comm en anglais: on va faire le amtching qu'entre les point Gauche et supposer que c'est bon car on a déjà matché les point g et droite avant: update -> match g old g new, match d d -> on filtre tout les points qui ne match pas (même ordre du coup simple à filtrer)
         
-        // int lim = 8;
+        std::vector<std::vector<cv::DMatch>>  matches_left_both, matches_right_both;
+        _flann->knnMatch(matching_desc_left_old, matching_desc_left_new, matches_left_both, 2);
+        _flann->knnMatch(matching_desc_right_old, matching_desc_right_new, matches_left_both, 2);
 
-        if(image_index > 7 && false)
-        {
-            cv::viz::Viz3d window("pcl");
-            int v = image_index-5;
-            std::cout << " pcl " << std::endl;
-
-            // créé/ajoute un nuage de points
-            cv::viz::WCloud cloud1(points_array[v], cv::viz::Color::yellow());
-            // cv::viz::WCloud cloud2(points_array[v+1], cv::viz::Color::orange());
-            // cv::viz::WCloud cloud3(points_array[v+2], cv::viz::Color::red());
-            // cv::viz::WCloud cloud4(points_array[v+3], cv::viz::Color::blue());
-            // cv::viz::WCloud cloud5(points_array[v+4], cv::viz::Color::green());
-
-            window.showWidget("Cloud1", cloud1);
-            // window.showWidget("Cloud2", cloud2);
-            // window.showWidget("Cloud3", cloud3);
-            // window.showWidget("Cloud4", cloud4);
-            // window.showWidget("Cloud5", cloud5);
-
-            window.spin();
-        }
-
-        // time for points arrays
-        
-
-        // // faire comm en anglais: on va faire le amtching qu'entre les point Gauche et supposer que c'est bon car on a déjà matché les point g et droite avant: update -> match g old g new, match d d -> on filtre tout les points qui ne match pas (même ordre du coup simple à filtrer)
-        
-        // std::vector<std::vector<cv::DMatch>>  matches_left_both, matches_right_both;
-        // _flann->knnMatch(matching_desc_left_old, matching_desc_left_new, matches_left_both, 2);
-        // _flann->knnMatch(matching_desc_right_old, matching_desc_right_new, matches_left_both, 2);
-
-        // std::vector<cv::DMatch> good_matches_left_both, good_matches_right_both;
-        // filter_good_matches(matches_left_both, 0.5, good_matches_left_both);
-        // filter_good_matches(matches_right_both, 0.5, good_matches_right_both);
+        std::vector<cv::DMatch> good_matches_left_both, good_matches_right_both;
+        filter_good_matches(matches_left_both, 0.5, good_matches_left_both);
+        filter_good_matches(matches_right_both, 0.5, good_matches_right_both);
 
         
-        // // find a better name 
-        // std::vector<cv::Point2f> matching_points_left_old_mieux, matching_points_right_old_mieux, matching_points_left_new_mieux, matching_points_right_new_mieux;
+        // find a better name 
+        std::vector<cv::Point2f> matching_points_left_old_mieux, matching_points_right_old_mieux, matching_points_left_new_mieux, matching_points_right_new_mieux;
 
-        // filter_matching_points(good_matches_left_both,
-        //                        matching_points_left_old,
-        //                        matching_points_left_new,
-        //                        matching_points_left_old_mieux,
-        //                        matching_points_left_new_mieux); 
+        filter_matching_points(good_matches_left_both,
+                               matching_points_left_old,
+                               matching_points_left_new,
+                               matching_points_left_old_mieux,
+                               matching_points_left_new_mieux); 
 
-        // // on re filtre ici sans avoir besoin de mathc car les points sont dans le même ordre ? // pour vérifier on prend une image et on color les 10er points
-        // filter_matching_points(good_matches_right_both,
-        //                        matching_points_right_old,
-        //                        matching_points_right_new,
-        //                        matching_points_right_old_mieux,
-        //                        matching_points_right_new_mieux); 
+        // on re filtre ici sans avoir besoin de mathc car les points sont dans le même ordre ? // pour vérifier on prend une image et on color les 10er points
+        filter_matching_points(good_matches_right_both,
+                               matching_points_right_old,
+                               matching_points_right_new,
+                               matching_points_right_old_mieux,
+                               matching_points_right_new_mieux); 
 
-        // // std::cout << 5 << std::endl;
+        std::cout << 5 << std::endl;
 
-        // // 3) Triangulate matched features for each stereo pair
-
-
-
-        // //MAYBE NOT HERE / peut être plus besoin
-        // // projection_matrix_left_old = projection_matrix_left_new.clone();
-        // // projection_matrix_right_old = projection_matrix_right_new.clone();
-
-        // // projection_matrix_left_new = ...;
-        // // projection_matrix_right_new = ...;
+        // 3) Triangulate matched features for each stereo pair
 
 
-        // // std::vector<cv::Point3f> points3D_left, points3D_right;
 
-        // // std::cout << projection_matrix_right_old << std::endl;
 
-        // //points3D
 
-        // // solve PNP ? d'abor dpour cococ la position into on triangulate pour l'étape d'après ? 
+        find_3Dpoints(projection_matrix_left_0, 
+                      projection_matrix_right_0,
+                      matching_points_left_old_mieux, 
+                      matching_points_right_old_mieux,
+                      points3D_old);
         
-        // std::vector<cv::Point3f> points3D_old, points3D_new;
+        std::cout << "2eme 3D points find" << std::endl;
+        find_3Dpoints(projection_matrix_left_0, 
+                      projection_matrix_right_0,
+                      matching_points_left_new_mieux,
+                      matching_points_right_new_mieux,
+                      points3D_new);
 
-        // // std::cout << projection_matrix_left_0 << std::endl;
-        // // std::cout << projection_matrix_right_0 << std::endl;
-
-        // find_3Dpoints(projection_matrix_left_0, 
-        //               projection_matrix_right_0,
-        //               matching_points_left_old_mieux, 
-        //               matching_points_right_old_mieux,
-        //               points3D_old);
-        
-        // std::cout << "2eme 3D points find" << std::endl;
-        // find_3Dpoints(projection_matrix_left_0, 
-        //               projection_matrix_right_0,
-        //               matching_points_left_new_mieux,
-        //               matching_points_right_new_mieux,
-        //               points3D_new);
-
-        // // std::cout << 6 << std::endl;
+        // std::cout << 6 << std::endl;
 
 
 
         // // 4) Compute Tk from 3-D features Xk1 and Xk
         cv::Mat inliers;
         cv::Mat Rti;
-        // std::cout << points3D_old_filtered.size() << std::endl;
-
-        // std::cout << points3D_new_filtered.size() << std::endl;
         
 
         cv::estimateAffine3D(points3D_old_filtered, points3D_new_filtered, Rti, inliers);
@@ -509,6 +437,7 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
     // std::cout << "matching_points1\n" << matching_points1 << std::endl;
     // std::cout << "matching_points2\n" << matching_points2 << std::endl;
 
+
     cv::triangulatePoints(projection_matrix1, // oldest camera
                           projection_matrix2, // newest caemra
                           matching_points1, 
@@ -544,9 +473,15 @@ int VisualOdometry_stereo::find_3Dpoints(cv::Mat& projection_matrix1,
     // Fill points3D with the converted coordinates
     for (int i = 0; i < points4D.cols; ++i) 
     {
-        points3D.emplace_back(Xn.at<float>(i), 
+        if(cv::abs(Xn.at<float>(i)) > 1000 || 
+            cv::abs(Yn.at<float>(i)) > 1000|| 
+            cv::abs(Zn.at<float>(i)) > 1000)
+        
+        {points3D.emplace_back(Xn.at<float>(i), 
                               Yn.at<float>(i), 
                               Zn.at<float>(i)); // AUTRE MANIERE CHEC FAST
+        }
+        s
     }
 
     std::cout << "points3D\n" << points3D[1] << std::endl;
@@ -742,11 +677,11 @@ int VisualOdometry_stereo::write_pose(const std::string& folder_path, const cv::
     std::ofstream pose_file(poses_path, std::ios::app);
     if(pose_file.is_open()) 
     {
-        for(int i = 0; i < poses.rows; i++)
+        for(int i = 0; i < pose.rows; i++)
         {
-            for(int j = 0; j < poses.cols ; j++)
+            for(int j = 0; j < pose.cols ; j++)
             {
-                pose_file << poses.at<float>(i,j) << " ";
+                pose_file << pose.at<float>(i,j) << " ";
             }
         }
         pose_file << std::endl;

@@ -57,15 +57,15 @@ if __name__ == "__main__":
     ground_truth_seq2 = data('Ground truth data seq2', 
                              read_data("example/KITTI_sequence_2/poses.txt"))
 
-    # example_data_2D_2D = data('Example data', 
-    #                     read_data("poses/seq2_2D_2D.txt"))
+    example_data_3D = data('Example data', 
+                        read_data("yo.txt"))
     
     # example_data_23_2D = data('Example data', 
     #                     read_data("poses/mono_3D_2D_my_poses_seq2.txt"))
     
-    # plot_data([
-    #     ground_truth_seq1,
-    #     example_data_2D_2D
-    #     ],
-    #     line=False,
-    #     count=True)
+    plot_data([
+        ground_truth_seq1,
+        example_data_3D
+        ],
+        line=False,
+        count=True)
