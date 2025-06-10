@@ -20,26 +20,6 @@ VisualOdometry_monocular::VisualOdometry_monocular(std::string new_data_director
     data_directory = new_data_directory;
 }
 
-// int dont know (cv::Mat essential_matrix, cv::Mat R1, cv::Mat R2, cv::Mat t)
-// {
-//     // A - assemble all poential T
-//     cv::Mat T1, T2, T3, T4; 
-//     T1 = fuse_R_t(R1, t);
-//     T2 = fuse_R_t(R2, t);
-//     T3 = fuse_R_t(R1, -t);
-//     T4 = fuse_R_t(R2, -t);
-
-//     // triangulate to find the relative scale
-//     std::vector projections{K * T1, K * T2 ,K * T3, K * T4};
-
-//     // https://realitybytes.blog/tag/monocular-visual-odometry/
-
-
-//     // find bigger positives
-//     return(0);
-// }
-
-
 cv::Mat VisualOdometry_monocular::motion_estimation()
 {
     // 3 - Compute essential matrix for image pair Ik-1 and Ik 
@@ -47,22 +27,12 @@ cv::Mat VisualOdometry_monocular::motion_estimation()
     essential_matrix = cv::findEssentialMat(q_previous, q_current, intrinsic_matrix, cv::RANSAC);
 
     // 4 - Decompose essential matriintrinsic_matrixce to Ri and ti
-    // Attention, several Rotation matrice are possible
-    cv::Mat Ri, ti; // q dans le bon ordre ? 
+    cv::Mat Ri, ti; 
     
     cv::recoverPose(essential_matrix, q_previous, q_current, intrinsic_matrix, Ri, ti);
 
-    // cv::Mat R1, R2, t;
-    // cv::decomposeEssentialMat(essential_matrix, R1, R2, t);
-
-    // jesaispas(essential_matrix, R1, R2, t);
-    // std::cout << "ti \n " << ti <<std::endl;
-    // std::cout << "Ri \n " <<Ri <<std::endl;
-
     cv::Mat Ti;
-
-    // std::cout << "Ri  :\n" << Ri <<std::endl;
-    // std::cout << "ti  :\n" << ti <<std::endl;
+    
     Ti = fuse_R_t(Ri, ti);
     // write_pose("poses/transform.txt", Ti);
     return(Ti);
@@ -122,16 +92,6 @@ int VisualOdometry_monocular::extract_and_matche_features(int image_index) // en
         q_previous.push_back(previous_keypoints[good.queryIdx].pt);
         q_current.push_back(current_keypoints[good.trainIdx].pt);
     }
-
-    //TEST
-    // cv::Mat img_matches;
-    // cv::drawMatches(images[image_index-1], previous_keypoints, 
-    //                 images[image_index], current_keypoints, 
-    //                 good_matches, img_matches, 
-    //                 cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-    // cv::resize(img_matches, img_matches, cv::Size(), 0.75, 0.75);
-    // cv::imshow("Good Matches VO", img_matches);
-    // cv::waitKey(0);
 
     return(0);
 }
@@ -288,25 +248,9 @@ void VisualOdometry_monocular::printMatchesArray(const std::vector<std::vector<c
     }
 }
 
-
 int main()
 {
     VisualOdometry_monocular VO = VisualOdometry_monocular("example/KITTI_sequence_2");
     VO.main();
     return(0);
 }
-
-/*
-
-- Comprendre flann et pourquoi c'est comme ça 
-- pourquoi knn et pas un autre
-- c'est quoi le mask à chaque fois ? 
-
-- peut être que le cacule de la matrice Ri est mauvaishttps://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#ga54a2f5b3f8aeaf6c76d4a31dece85d5d
-- L'axe y est vers le haut
-- il faut comprendre la partie triangulation MAIS on sait que recover pose fait le taff à notre place
-*/
-
-
-
-
